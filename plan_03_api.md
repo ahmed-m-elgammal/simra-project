@@ -179,6 +179,8 @@ Run: `supabase start && supabase db reset && psql $LOCAL_DB -c "select count(*) 
 Expected: count matches seed. Then verify RLS: anon-keyed select on books returns 0 rows (policies deny).
 Run: `supabase migration list` to confirm 001 applied. Rollback check: `supabase db reset` returns to clean (migrations are the only schema path — never hand-edit the DB).
 
+Machine note (locked): this Docker path runs in CI / on machines with Docker. Machines without Docker run `pnpm verify:sql` instead (`scripts/verify-sql.mjs` on pg-mem: proves SQL parses, seeds apply, PKs/checks/FKs hold, and every table carries its RLS line with zero permissive policies). The one thing pg-mem cannot prove — live anon-deny — stays in `e2e.local.sh` on a real stack and blocks any production deploy without it.
+
 - [ ] **Step 4: Commit**
 
 ```bash
