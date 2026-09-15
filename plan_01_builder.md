@@ -245,6 +245,8 @@ Expected: FAIL with "validateChapter is not a function".
 
 Tests load fixtures via `fileURLToPath(import.meta.url)` (cwd-safe). All invalid fixtures use valid-length outcome prose so each isolates exactly one failure code. Implementation additionally checks `requires` vars against the ledger (same `UNKNOWN_VAR` code) — cheap, same rule family.
 
+Review fixes (applied after Tasks 1-7 evidence pass, commit `f349b5a`): minify is structural key-rename (string-replace would corrupt `"key":`-shaped prose inside outcome text); new blocking `DUPLICATE_ID` gate (dup decision/option ids silently overwrote maps; dup persona effects in one option); crash hardening (`?? []`, non-string `outcome_text` coerced — library never throws on malformed input); `all`/`any` arrays require `.min(1)` (empty `{all:[]}` compiled open but failed the null-check — now rejected at schema with a clear error).
+
 - [ ] **Step 4: Write minimal validators**
 
 ```ts
