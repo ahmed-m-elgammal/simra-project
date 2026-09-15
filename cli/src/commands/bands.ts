@@ -5,7 +5,7 @@ import { CliError, readState, writeState } from "../lib/workdir.js";
 import { buildBandsPack } from "../lib/packs.js";
 import { approvedChapters, buildLedger, submitJson, withRules } from "../lib/submit.js";
 
-const BandsSchema = z.object({
+export const BandsSchema = z.object({
   bands: z.array(z.object({ key: z.string().min(1), predicate: RequiresSchema })).min(1),
 });
 

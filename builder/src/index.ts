@@ -28,6 +28,10 @@ import { minifyBundle } from "./minify.js";
 export { CanonicalChapterSchema, RequiresSchema } from "./schemas.js";
 export { auditDecision, type AuditFinding } from "./auditor.js";
 export { compileBand, compileRequires } from "./precompile.js";
+export { TransformersEmbeddings } from "./embeddings/transformers.js";
+export { FakeEmbeddings } from "./embeddings/fake.js";
+export { screenDuplicates, screenDuplicatesAsync, type DuplicateFinding } from "./duplicates.js";
+export type { EmbeddingProvider } from "./embeddings/types.js";
 export type { Ledger };
 
 const WORD_MIN = 30;

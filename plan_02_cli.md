@@ -390,7 +390,9 @@ git commit -m "feat(cli): submit+approve flows with machine-readable errors"
 - Create: `cli/src/commands/validate.ts`, `cli/src/commands/build.ts`
 - Test: `cli/src/commands/build.test.ts` (runs both on `fixtures/minibook`, asserts golden bundle hash)
 
-`validate`: loads all approved state → runs every builder check (schemas, ledger, DAG per chapter, gating, placeholders, duplicates screen with FakeEmbeddings in tests / real provider flag `--embeddings local` default in real runs, auditor MEANINGLESS-blocking / DOMINANT-advisory, coverage) → prints `{ ok:true, chapters }` or `{ ok:false, code:"VALIDATION", details }` exit 2.
+`validate`: loads all approved state → runs every builder check (schemas, ledger, DAG per chapter, gating, placeholders, duplicates screen with FakeEmbeddings in tests / real provider flag `--embeddings local` default in real runs, auditor MEANINGLESS-blocking / DOMINANT-advisory, coverage) → prints `{ ok:true, chapters }` or `{ ok:false, code:"VALIDATION", details }` exit 2. Implemented as exported `runValidate()` reused by `build` (no duplicated logic).
+
+Locked as built: assembly lives in `lib/assemble.ts` (vars metadata must come from exactly one `new_variables` declaration — persona seeds alone throw `VAR_WITHOUT_METADATA`). Front matter merges into the opening sim chapter (coverage stays exact-once; no skip flags). `bands.json` is required input to both validate and build.
 
 `build`: requires validate-green → assembles book object → `compile()` → writes `bundle-{book}-{locale}-vN.json` + `.br` + `.gz` + prints `{ ok:true, sha, bytes, wire_br }`. Version N = max approved bundle_version + 1 from `bookforge.config.json` (`next_version` field, bumped only by successful build). Pure local, no network, no keys — assert in test via env scrub (delete `SUPABASE_*`/`HTTPS_PROXY` and still pass).
 

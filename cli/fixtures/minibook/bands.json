@@ -1,0 +1,6 @@
+{
+  "bands": [
+    { "key": "steady", "predicate": { "all": [{ "var": "consistency", "op": ">=", "value": 50 }] } },
+    { "key": "shaky", "predicate": { "all": [{ "var": "consistency", "op": "<", "value": 50 }] } }
+  ]
+}

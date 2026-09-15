@@ -29,6 +29,9 @@ const RULES: Record<string, string> = {
   MEANINGLESS: "Options must differ in consequence; identical deltas are filler.",
   SEGMENT_COVERAGE: "Every raw chapter must be covered exactly once across source_ranges.",
   SEGMENT_ORDER: "Sim orders must be unique and sequential from 1; titles unique.",
+  CHAPTER_GAP: "Approved chapters must match the locked segmentation orders exactly.",
+  DUPLICATE_VAR: "Same meaning goes to the same key; real differences keep separate keys with a distinction note.",
+  VAR_WITHOUT_METADATA: "Every tracked var needs one new_variables declaration; persona seeds alone are not enough.",
 };
 
 export function withRules(errs: Array<{ code: string; message: string; nodeIds?: string[] }>): Detail[] {
@@ -72,6 +75,15 @@ export function approvedChapters(workdir: string): string[] {
     .sort();
 }
 
+export function accumulateLedger(
+  ledger: Record<string, { introduced_in: number }>,
+  chapter: { order?: number; new_variables?: Array<{ key?: string }> },
+): void {
+  for (const v of chapter.new_variables ?? []) {
+    if (typeof v?.key === "string") ledger[v.key] ??= { introduced_in: chapter.order ?? 0 };
+  }
+}
+
 export function buildLedger(workdir: string): Record<string, { introduced_in: number }> {
   const ledger: Record<string, { introduced_in: number }> = {};
   try {
@@ -83,10 +95,7 @@ export function buildLedger(workdir: string): Record<string, { introduced_in: nu
     // No personas yet (segment stage) — empty ledger is correct.
   }
   for (const f of approvedChapters(workdir)) {
-    const ch = readState<any>(workdir, `chapters/${f}`);
-    for (const v of ch.new_variables ?? []) {
-      if (typeof v?.key === "string") ledger[v.key] ??= { introduced_in: ch.order ?? 0 };
-    }
+    accumulateLedger(ledger, readState<any>(workdir, `chapters/${f}`));
   }
   return ledger;
 }
