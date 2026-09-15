@@ -122,7 +122,7 @@ describe("schemas", () => {
 Run: `pnpm --filter @app/bundle-builder exec vitest run src/schemas.test.ts`
 Expected: FAIL with "Cannot find module './schemas.js'".
 
-- [ ] **Step 3: Write fixtures.** `habits-ch1.canonical.json` — one chapter, habit book, 2 personas (`maya`, `omar`), 1 decision, 2 options, each option with both persona effects, one option `requires: null`, deltas reference `consistency/energy` only. `invalid-missing-persona.json` — same but option 2 lacks the `omar` effect entry.
+Tests load fixtures via `fileURLToPath(import.meta.url)` (cwd-safe under both root and package runs). `invalid-missing-persona.json` uses an empty `persona_effects` array (schema-shape violation); per-persona coverage is enforced by Task 3's `MISSING_PERSONA` validator, not the schema.
 
 - [ ] **Step 4: Write minimal schemas**
 
@@ -203,7 +203,7 @@ git commit -m "feat(builder): canonical Zod schemas + fixtures"
 **Files:**
 - Create: `builder/src/ledger.ts`, `builder/src/dag.ts`, `builder/src/gating.ts`
 - Test: `builder/src/validate.test.ts`
-- Create: `builder/fixtures/invalid-cycle.json`, `builder/fixtures/invalid-unknown-var.json`, `builder/fixtures/invalid-all-locked.json`
+- Create: `builder/fixtures/invalid-cycle.json`, `builder/fixtures/invalid-unknown-var.json`, `builder/fixtures/invalid-all-locked.json`, `builder/fixtures/invalid-word-count.json` (one `outcome_text` of 1 word, e.g. "Hi.")
 
 - [ ] **Step 1: Write the failing test**
 
@@ -231,6 +231,10 @@ describe("validateChapter", () => {
     const errs = validateChapter(load("invalid-all-locked.json"), ["maya", "omar"], ledger);
     expect(errs.some((e) => e.code === "NO_OPEN_OPTION")).toBe(true);
   });
+  it("flags outcome_text outside 30-100 words (spec: 40-70, validator tolerates 30-100)", () => {
+    const errs = validateChapter(load("invalid-word-count.json"), ["maya", "omar"], ledger);
+    expect(errs.some((e) => e.code === "WORD_COUNT")).toBe(true);
+  });
 });
 ```
 
@@ -245,7 +249,7 @@ Expected: FAIL with "validateChapter is not a function".
 
 ```ts
 export interface ValidationError {
-  code: "DAG_CYCLE" | "DAG_ORPHAN" | "DAG_DEAD_END" | "UNKNOWN_VAR" | "MISSING_PERSONA" | "NO_OPEN_OPTION" | "BAD_PLACEHOLDER";
+  code: "DAG_CYCLE" | "DAG_ORPHAN" | "DAG_DEAD_END" | "UNKNOWN_VAR" | "MISSING_PERSONA" | "NO_OPEN_OPTION" | "BAD_PLACEHOLDER" | "WORD_COUNT";
   message: string;
   nodeIds: string[];
 }
@@ -363,7 +367,7 @@ export function validateChapter(chapter: any, personaIds: string[], ledger: Ledg
 }
 ```
 
-Split into `ledger.ts` (key-existence helper), `dag.ts` (cycle/reachability/termination), `gating.ts` (always-available rule) in the real files; `index.ts` re-exports `validateChapter` composing them. Keep the exact error codes above — tests and the CLI depend on them.
+Split into `ledger.ts` (key-existence helper), `dag.ts` (cycle/reachability/termination), `gating.ts` (always-available rule) in the real files; `index.ts` re-exports `validateChapter` composing them. Keep the exact error codes above — tests and the CLI depend on them. Word-count rule (blocking): every `outcome_text` must hold 30–100 whitespace-separated words (`text.trim().split(/\s+/).length`); emit `WORD_COUNT` with the option id. Bounds are wider than the spec's 40–70 so valid prose never fails brittlely.
 
 - [ ] **Step 5: Run test to verify it passes**
 
