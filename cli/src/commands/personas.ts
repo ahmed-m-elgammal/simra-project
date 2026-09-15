@@ -55,3 +55,5 @@ export default defineCommand({
   meta: { name: "personas", description: "Personas prompt/submit." },
   subCommands: { prompt, submit },
 });
+
+export { prompt, submit };

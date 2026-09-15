@@ -25,7 +25,11 @@ export function readState<T>(workdir: string, name: string): T {
   if (!existsSync(p)) {
     throw new CliError("MISSING_INPUT", `missing required state file: ${name} (run the earlier stage first)`);
   }
-  return JSON.parse(readFileSync(p, "utf8")) as T;
+  try {
+    return JSON.parse(readFileSync(p, "utf8")) as T;
+  } catch {
+    throw new CliError("VALIDATION", `corrupt state file (not JSON): ${name} (restore or re-run the stage)`);
+  }
 }
 
 export function exitCode(e: unknown): number {

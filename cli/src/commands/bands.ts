@@ -64,3 +64,5 @@ export default defineCommand({
   meta: { name: "bands", description: "Bands prompt/submit." },
   subCommands: { prompt, submit },
 });
+
+export { prompt, submit };

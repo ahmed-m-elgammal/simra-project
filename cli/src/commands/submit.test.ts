@@ -1,29 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runCommand } from "citty";
 import { CliError } from "../lib/workdir.js";
 import { approve as chapterApprove, requestChanges as chapterRequestChanges, submit as chapterSubmit } from "./chapter.js";
-import { submit as segmentSubmit } from "./segment.js";
+import { prompt as chapterPrompt } from "./chapter.js";
+import { approve as segmentApprove, submit as segmentSubmit } from "./segment.js";
+import { prompt as personasPrompt, submit as personasSubmit } from "./personas.js";
+import { prompt as bandsPrompt, submit as bandsSubmit } from "./bands.js";
+import { seedFullWorkdir } from "../../fixtures/minibook/seed-workdir.js";
 
 const fxDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "fixtures", "minibook");
 const fx = (n: string) => join(fxDir, n);
-
-function seedWorkdir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "bf-"));
-  const cp = (src: string, dest: string) => {
-    const target = join(dir, dest);
-    mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(join(fxDir, src), target);
-  };
-  writeFileSync(join(dir, "bookforge.config.json"), JSON.stringify({ book_id: "mini", locale: "en", thresholds: { dupFlag: 0.85, dupNote: 0.7 }, pack_format: 1, next_version: 1 }));
-  cp("personas.json", "personas.json");
-  cp("sim_chapters.json", "sim_chapters.approved.json");
-  cp("chapters/01.json", "chapters/01.approved.json");
-  return dir;
-}
+const seedWorkdir = seedFullWorkdir;
 
 describe("submit + approve", () => {
   it("stores a valid chapter and reports warnings array", async () => {
@@ -77,6 +68,73 @@ describe("submit + approve", () => {
       expect.unreachable();
     } catch (e) {
       expect(((e as CliError).details as Array<{ code: string }>).some((d) => d.code === "SEGMENT_COVERAGE")).toBe(true);
+    }
+    expect(existsSync(join(dir, "sim_chapters.json"))).toBe(false);
+  });
+  it("segment approve locks; re-approve after tampering fails", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "bf-"));
+    writeFileSync(join(dir, "bookforge.config.json"), JSON.stringify({ book_id: "mini", locale: "en" }));
+    writeFileSync(join(dir, "raw_chapters.json"), JSON.stringify([{ id: "raw_ch_1" }]));
+    const good = join(dir, "seg.json");
+    writeFileSync(good, JSON.stringify({ sim_chapters: [{ order: 1, title: "All", source_ranges: ["raw_ch_1"], rationale: "r", teaching_point: "t" }] }));
+    await runCommand(segmentSubmit, { rawArgs: ["--workdir", dir, "--file", good] });
+    const { result } = (await runCommand(segmentApprove, { rawArgs: ["--workdir", dir] })) as any;
+    expect(result.approved).toBe("sim_chapters.approved.json");
+    writeFileSync(join(dir, "sim_chapters.json"), JSON.stringify({ sim_chapters: [{ order: 1, title: "All", source_ranges: ["nope"], rationale: "r", teaching_point: "t" }] }));
+    await expect(runCommand(segmentApprove, { rawArgs: ["--workdir", dir] })).rejects.toBeInstanceOf(CliError);
+  });
+  it("personas prompt needs approved segmentation; submit stores the set", async () => {
+    const dir = seedWorkdir();
+    const { result } = (await runCommand(personasPrompt, { rawArgs: ["--workdir", dir] })) as any;
+    expect(result.stage).toBe("personas");
+    const dir2 = mkdtempSync(join(tmpdir(), "bf-"));
+    writeFileSync(join(dir2, "bookforge.config.json"), JSON.stringify({ book_id: "mini", locale: "en" }));
+    writeFileSync(join(dir2, "raw_chapters.json"), JSON.stringify([]));
+    await expect(runCommand(personasPrompt, { rawArgs: ["--workdir", dir2] })).rejects.toBeInstanceOf(CliError);
+    const file = join(dir, "personas-out.json");
+    writeFileSync(file, JSON.stringify({ teaching_goal: "g", personas: [{ persona_id: "z", name: "Z", description: "D", starting_state: { x: 1 } }] }));
+    const stored = (await runCommand(personasSubmit, { rawArgs: ["--workdir", dir, "--file", file] })) as any;
+    expect(stored.result.personas).toBe(1);
+  });
+  it("chapter prompt carries the right order; submit rejects order mismatch", async () => {
+    const dir = seedWorkdir();
+    const { result } = (await runCommand(chapterPrompt, { rawArgs: ["--workdir", dir, "--n", "2"] })) as any;
+    expect(result.chapter?.order).toBe(2);
+    try {
+      await runCommand(chapterSubmit, { rawArgs: ["--workdir", dir, "--n", "3", "--file", fx("agent-chapter02-good.json")] });
+      expect.unreachable();
+    } catch (e) {
+      expect((e as CliError).code).toBe("VALIDATION");
+    }
+    expect(existsSync(join(dir, "chapters", "03.json"))).toBe(false);
+  });
+  it("approve revalidates: tampered proposed chapters do not lock", async () => {
+    const dir = seedWorkdir();
+    await runCommand(chapterSubmit, { rawArgs: ["--workdir", dir, "--n", "2", "--file", fx("agent-chapter02-good.json")] });
+    const tampered = JSON.parse(readFileSync(join(dir, "chapters", "02.json"), "utf8"));
+    tampered.decisions[0].options[0].next = "void";
+    writeFileSync(join(dir, "chapters", "02.json"), JSON.stringify(tampered));
+    await expect(runCommand(chapterApprove, { rawArgs: ["--workdir", dir, "--n", "2"] })).rejects.toBeInstanceOf(CliError);
+    // seed ships 02.approved.json: prove approve did NOT overwrite it with tampered content.
+    expect(readFileSync(join(dir, "chapters", "02.approved.json"), "utf8")).not.toContain("void");
+  });
+  it("bands prompt gates on all-approved; submit stores compiled-checked bands", async () => {
+    const dir = seedFullWorkdir();
+    const { result } = (await runCommand(bandsPrompt, { rawArgs: ["--workdir", dir] })) as any;
+    expect(result.stage).toBe("bands");
+    const file = join(dir, "bands-out.json");
+    writeFileSync(file, JSON.stringify({ bands: [{ key: "k", predicate: { all: [{ var: "consistency", op: ">=", value: 1 }] } }] }));
+    const stored = (await runCommand(bandsSubmit, { rawArgs: ["--workdir", dir, "--file", file] })) as any;
+    expect(stored.result.bands).toBe(1);
+    writeFileSync(file, JSON.stringify({ bands: [{ key: "k", predicate: { all: [{ var: "ghost", op: ">=", value: 1 }] } }] }));
+    await expect(runCommand(bandsSubmit, { rawArgs: ["--workdir", dir, "--file", file] })).rejects.toBeInstanceOf(CliError);
+    const dir2 = seedFullWorkdir();
+    rmSync(join(dir2, "chapters", "02.approved.json"));
+    try {
+      await runCommand(bandsPrompt, { rawArgs: ["--workdir", dir2] });
+      expect.unreachable();
+    } catch (e) {
+      expect((e as CliError).code).toBe("GATE_OPEN");
     }
   });
 });

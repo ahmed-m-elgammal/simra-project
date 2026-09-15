@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { buildBandsPack, buildChapterPack, buildPersonasPack, buildSegmentPack } from "./packs.js";
+import { buildBandsPack, buildChapterPack, buildPersonasPack, buildSegmentPack, observedRanges } from "./packs.js";
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const fx = (n: string) => JSON.parse(readFileSync(join(dir, "..", "..", "fixtures", "minibook", n), "utf8"));
@@ -47,5 +47,23 @@ describe("packs", () => {
     const bands = buildBandsPack({ book_id: b.book_id, locale: b.locale, prior: b.prior, ledger: b.ledger });
     const ranges = bands.context.observed_ranges as Record<string, { min: number; max: number }>;
     expect(ranges.consistency.min).toBeLessThanOrEqual(ranges.consistency.max);
+  });
+  it("chapter prompt fails when the order is not segmented", () => {
+    expect(() => buildChapterPack({ ...base(), chapterOrder: 9 })).toThrow(/no sim chapter with order 9/);
+  });
+  it("personas overview truncates long chapters to excerpts", () => {
+    const b = base();
+    const long = { ...b, raw: [{ id: "r1", title: "T", text: "x".repeat(2000) }] };
+    const per = buildPersonasPack({ book_id: long.book_id, locale: long.locale, raw: long.raw, sim: long.sim });
+    const overview = per.context.raw_overview as Array<{ excerpt: string }>;
+    expect(overview[0].excerpt).toHaveLength(800);
+  });
+  it("observed ranges merge deltas across chapters", () => {
+    const ranges = observedRanges([
+      { decisions: [{ options: [{ persona_effects: [{ delta: { x: 1, y: 5 } }] }] }] },
+      { decisions: [{ options: [{ persona_effects: [{ delta: { x: -2 } }, { delta: { y: 9 } }] }] }] },
+    ]);
+    expect(ranges).toEqual({ x: { min: -2, max: 1 }, y: { min: 5, max: 9 } });
+    expect(observedRanges([])).toEqual({});
   });
 });
