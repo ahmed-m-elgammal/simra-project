@@ -19,6 +19,9 @@ export interface ValidationError {
 import { checkDag } from "./dag.js";
 import { checkOpenOption } from "./gating.js";
 import { countWords, keyExists, placeholderVars, requiresVars, type Ledger } from "./ledger.js";
+import { normalizeChapter } from "./normalize.js";
+import { compileBand, compileRequires } from "./precompile.js";
+import { minifyBundle } from "./minify.js";
 
 const WORD_MIN = 30;
 const WORD_MAX = 100;
@@ -58,4 +61,28 @@ export function validateChapter(chapter: any, personaIds: string[], ledger: Ledg
     }
   }
   return errs;
+}
+
+export function compile(book: any): { json: string; br: Buffer; gz: Buffer; sha: string } {
+  const chaptersById: Record<string, unknown> = {};
+  for (const ch of book.chapters) {
+    const n = normalizeChapter(ch);
+    const optionsById: Record<string, unknown> = {};
+    for (const [oid, o] of Object.entries(n.optionsById) as Array<[string, any]>) {
+      optionsById[oid] = { ...o, requires_compiled: compileRequires(o.requires) };
+    }
+    chaptersById[ch.chapter_id] = { ...n, optionsById };
+  }
+  const bundle = {
+    format: 1,
+    book_id: book.book_id,
+    version: book.version,
+    config: {
+      ...book.config,
+      bands_compiled: (book.config.bands ?? []).map((b: any) => ({ key: b.key, fn: compileBand(b.predicate) })),
+    },
+    personasById: Object.fromEntries(book.personas.map((p: any) => [p.persona_id, p])),
+    chaptersById,
+  };
+  return minifyBundle(bundle);
 }
