@@ -1,0 +1,24 @@
+{
+  "vars": [
+    { "key": "stress", "gloss": "Stress: mental tension from pressure and overload" },
+    { "key": "anxiety_level", "gloss": "Anxiety level: uneasy worry about what might happen" },
+    { "key": "debt", "gloss": "Debt: money currently owed to lenders" },
+    { "key": "what_you_owe", "gloss": "What you owe: total outstanding borrowed money" },
+    { "key": "consistency", "gloss": "Consistency: how regularly the routine is kept" },
+    { "key": "habit_streak", "gloss": "Habit streak: consecutive days without breaking the chain" },
+    { "key": "energy", "gloss": "Energy: physical vitality available today" },
+    { "key": "motivation", "gloss": "Motivation: drive and desire to act" }
+  ],
+  "similarity": {
+    "Stress: mental tension from pressure and overload\u0000Anxiety level: uneasy worry about what might happen": 0.88,
+    "Debt: money currently owed to lenders\u0000What you owe: total outstanding borrowed money": 0.93,
+    "Consistency: how regularly the routine is kept\u0000Habit streak: consecutive days without breaking the chain": 0.62,
+    "Energy: physical vitality available today\u0000Motivation: drive and desire to act": 0.45
+  },
+  "expected": [
+    { "a": "stress", "b": "anxiety_level", "verdict": "flag" },
+    { "a": "debt", "b": "what_you_owe", "verdict": "flag" },
+    { "a": "consistency", "b": "habit_streak", "verdict": "keep" },
+    { "a": "energy", "b": "motivation", "verdict": "keep" }
+  ]
+}
