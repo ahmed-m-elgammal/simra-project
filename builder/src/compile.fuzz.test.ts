@@ -39,8 +39,9 @@ function randomChapter(rand: () => number, personas: string[]): any {
 
 describe("fuzz", () => {
   it("never throws and valid chapters compile", () => {
-    const rand = mulberry32(7);
-    for (let i = 0; i < 50; i++) {
+    for (const seed of [7, 99, 1234]) {
+      const rand = mulberry32(seed);
+      for (let i = 0; i < 50; i++) {
       const ch = randomChapter(rand, ["p1", "p2"]);
       const errs = validateChapter(ch, ["p1", "p2"], { x: { introduced_in: 1 } });
       expect(Array.isArray(errs)).toBe(true);
@@ -54,6 +55,7 @@ describe("fuzz", () => {
         });
         expect(out.sha).toMatch(/^[0-9a-f]{64}$/);
       }
+    }
     }
   });
 });

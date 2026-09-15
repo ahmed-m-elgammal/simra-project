@@ -21,4 +21,35 @@ describe("precompile", () => {
     const fn = compileBand({ all: [{ var: "consistency", op: ">=", value: 60 }] });
     expect(run(fn, { consistency: 70 })).toBe(true);
   });
+  it("compiles every operator", () => {
+    const cases: Array<[string, number, number, boolean]> = [
+      ["==", 1, 1, true],
+      ["!=", 1, 2, true],
+      ["<", 1, 2, true],
+      ["<=", 2, 2, true],
+      [">", 3, 2, true],
+      [">=", 2, 2, true],
+      ["==", 1, 2, false],
+    ];
+    for (const [op, state, value, expected] of cases) {
+      const fn = compileRequires({ all: [{ var: "x", op, value }] });
+      expect(run(fn, { x: state })).toBe(expected);
+    }
+  });
+  it("treats empty all as true and empty any as false", () => {
+    expect(run(compileRequires({ all: [] }), {})).toBe(true);
+    expect(run(compileRequires({ any: [] }), {})).toBe(false);
+  });
+  it("evaluates deep any/not/all nesting", () => {
+    const fn = compileRequires({
+      any: [{ all: [{ var: "x", op: ">", value: 5 }] }, { not: { all: [{ var: "y", op: "==", value: 0 }] } }],
+    });
+    expect(run(fn, { x: 1, y: 1 })).toBe(true);
+    expect(run(fn, { x: 1, y: 0 })).toBe(false);
+  });
+  it("enforces known vars and float values", () => {
+    const atom = { var: "energy", op: ">", value: 0.5 };
+    expect(run(compileRequires({ all: [atom] }, ["energy"]), { energy: 1 })).toBe(true);
+    expect(() => compileRequires({ all: [atom] }, ["other"])).toThrow(/unknown var/);
+  });
 });
