@@ -1,0 +1,7 @@
+{
+  "teaching_goal": "Turn shaky routines into steady systems.",
+  "personas": [
+    { "persona_id": "maya", "name": "Maya", "description": "Night-shift nurse, low energy mornings.", "starting_state": { "consistency": 35 } },
+    { "persona_id": "omar", "name": "Omar", "description": "New father, fragmented evenings.", "starting_state": { "consistency": 45 } }
+  ]
+}

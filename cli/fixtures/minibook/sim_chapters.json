@@ -1,0 +1,6 @@
+{
+  "sim_chapters": [
+    { "order": 1, "title": "Mornings", "source_ranges": ["raw_ch_2"], "rationale": "stands alone", "teaching_point": "Small starts compound." },
+    { "order": 2, "title": "Evenings", "source_ranges": ["raw_ch_3"], "rationale": "stands alone", "teaching_point": "Environment beats willpower." }
+  ]
+}

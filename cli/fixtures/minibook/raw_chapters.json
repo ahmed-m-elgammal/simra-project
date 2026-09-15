@@ -1,0 +1,5 @@
+[
+  { "id": "raw_ch_1", "title": "FOREWORD", "text": "FOREWORD\nA few words before we begin.", "char_start": 0, "char_end": 38, "marker_type": "fallback" },
+  { "id": "raw_ch_2", "title": "CHAPTER 1", "text": "CHAPTER 1\nMornings shape the day. Start tiny and repeat.", "char_start": 39, "char_end": 92, "marker_type": "regex" },
+  { "id": "raw_ch_3", "title": "CHAPTER 2", "text": "CHAPTER 2\nEvenings decide tomorrow. Design the room, not the will.", "char_start": 93, "char_end": 158, "marker_type": "regex" }
+]

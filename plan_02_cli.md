@@ -275,35 +275,62 @@ git commit -m "feat(cli): init + ingest with extractor interface"
 - Test: `cli/src/lib/packs.test.ts`
 - Create: `cli/fixtures/minibook/` (raw_chapters.json, sim_chapters.json, personas.json, chapters/01.json approved)
 
-Pack contract (locked): `{ pack_format: 1, stage, book_id, locale, task, schema (JSON Schema from the builder Zod objects via zod-to-json-schema), constraints (verbatim rules for the stage), context (ledger, personas, prior approved chapters, thresholds), output_shape_hint }`. Builders are pure functions of workdir state — byte-stable goldens on the minibook fixture.
+Pack contract (locked): `{ pack_format: 1, stage, book_id, locale, task, schemaSource (the actual Zod source text from `@app/bundle-builder`, read at runtime — zero drift, zero conversion), constraints (verbatim rules for the stage), context (ledger, personas, prior approved chapters), chapter? (order/title/ranges/sliced source text, chapter packs only) }`. Builders are pure functions of workdir state — byte-stable goldens on the minibook fixture. (`zod-to-json-schema` was evaluated and rejected: it crashes on the recursive `RequiresSchema`. No conversion library; the source text IS the single source.)
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { buildChapterPack } from "./packs.js";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { buildBandsPack, buildChapterPack, buildPersonasPack, buildSegmentPack } from "./packs.js";
 
-const state = (n: string) => JSON.parse(readFileSync(`fixtures/minibook/${n}`, "utf8"));
+const dir = dirname(fileURLToPath(import.meta.url));
+const fx = (n: string) => JSON.parse(readFileSync(join(dir, "..", "..", "fixtures", "minibook", n), "utf8"));
+
+const base = () => ({
+  book_id: "mini",
+  locale: "en" as const,
+  raw: fx("raw_chapters.json"),
+  sim: fx("sim_chapters.json"),
+  personas: fx("personas.json"),
+  prior: [fx("chapters/01.json")],
+  ledger: { consistency: { introduced_in: 1 } },
+});
 
 describe("packs", () => {
   it("chapter pack embeds schema + ledger + prior chapters + constraints", () => {
-    const pack = buildChapterPack({ book_id: "mini", locale: "en", chapterOrder: 2, raw: state("raw_chapters.json"), sim: state("sim_chapters.json"), personas: state("personas.json"), prior: [state("chapters/01.json")], ledger: { consistency: { introduced_in: 1 } } });
+    const pack = buildChapterPack({ ...base(), chapterOrder: 2 });
     expect(pack.pack_format).toBe(1);
-    expect(JSON.stringify(pack.schema)).toContain("persona_effects");
-    expect(JSON.stringify(pack.constraints)).toContain("requires");
+    expect(pack.schemaSource).toContain("persona_effects");
+    expect(pack.schemaSource).toContain("RequiresSchema");
+    expect(pack.constraints).toContain("requires");
     expect(pack.context.prior_chapters).toHaveLength(1);
-    expect(pack.context.ledger.consistency.introduced_in).toBe(1);
+    expect((pack.context.ledger as { consistency: { introduced_in: number } }).consistency.introduced_in).toBe(1);
   });
-  it("packs are byte-stable (golden)", () => {
-    const pack = buildChapterPack({ book_id: "mini", locale: "en", chapterOrder: 2, raw: state("raw_chapters.json"), sim: state("sim_chapters.json"), personas: state("personas.json"), prior: [state("chapters/01.json")], ledger: { consistency: { introduced_in: 1 } } });
-    const golden = readFileSync("fixtures/minibook/chapter02.pack.golden.json", "utf8");
+  it("chapter pack carries only its own source ranges", () => {
+    const pack = buildChapterPack({ ...base(), chapterOrder: 2 });
+    expect(pack.chapter?.source_text).toContain("Evenings decide tomorrow");
+    expect(pack.chapter?.source_text).not.toContain("Mornings shape the day");
+  });
+  it("chapter packs are byte-stable (golden)", () => {
+    const pack = buildChapterPack({ ...base(), chapterOrder: 2 });
+    const golden = readFileSync(join(dir, "..", "..", "fixtures", "minibook", "chapter02.pack.golden.json"), "utf8");
     expect(JSON.stringify(pack)).toBe(golden.trim());
+  });
+  it("segment/personas/bands packs carry the right context", () => {
+    const b = base();
+    expect(buildSegmentPack({ book_id: b.book_id, locale: b.locale, raw: b.raw }).context.raw_chapters).toHaveLength(3);
+    expect(buildPersonasPack({ book_id: b.book_id, locale: b.locale, raw: b.raw, sim: b.sim }).stage).toBe("personas");
+    const bands = buildBandsPack({ book_id: b.book_id, locale: b.locale, prior: b.prior, ledger: b.ledger });
+    const ranges = bands.context.observed_ranges as Record<string, { min: number; max: number }>;
+    expect(ranges.consistency.min).toBeLessThanOrEqual(ranges.consistency.max);
   });
 });
 ```
 
-Generate the golden once from the implementation, eyeball it (schema present, no book text leaked beyond the chapter's own source ranges), then freeze.
+Generate the golden once from the implementation, eyeball it (schema present, only the chapter's own source ranges, no ANSI escapes), then freeze.
 
 - [ ] **Step 2: Run test to verify it fails**
 
