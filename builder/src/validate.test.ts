@@ -28,4 +28,8 @@ describe("validateChapter", () => {
     const errs = validateChapter(load("invalid-word-count.json"), ["maya", "omar"], ledger);
     expect(errs.some((e) => e.code === "WORD_COUNT")).toBe(true);
   });
+  it("flags duplicate option ids instead of overwriting them", () => {
+    const errs = validateChapter(load("invalid-dup-id.json"), ["maya", "omar"], ledger);
+    expect(errs.some((e) => e.code === "DUPLICATE_ID")).toBe(true);
+  });
 });

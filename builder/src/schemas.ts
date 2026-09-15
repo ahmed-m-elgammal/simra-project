@@ -4,10 +4,10 @@ export const RequiresSchema: z.ZodType<unknown> = z.lazy(() =>
   z.union([
     z.null(),
     z.object({
-      all: z.array(z.object({ var: z.string(), op: z.enum(["==", "!=", "<", "<=", ">", ">="]), value: z.number() })),
+      all: z.array(z.object({ var: z.string(), op: z.enum(["==", "!=", "<", "<=", ">", ">="]), value: z.number() })).min(1),
     }),
     z.object({
-      any: z.array(z.object({ var: z.string(), op: z.enum(["==", "!=", "<", "<=", ">", ">="]), value: z.number() })),
+      any: z.array(z.object({ var: z.string(), op: z.enum(["==", "!=", "<", "<=", ">", ">="]), value: z.number() })).min(1),
     }),
     z.object({ not: RequiresSchema }),
   ]),
