@@ -243,7 +243,7 @@ describe("validateChapter", () => {
 Run: `pnpm --filter @app/bundle-builder exec vitest run src/validate.test.ts`
 Expected: FAIL with "validateChapter is not a function".
 
-- [ ] **Step 3: Write the three fixtures** (copy the good fixture; cycle = option A `next: dec2`, option in dec2 `next: dec1`; unknown-var = delta key `stamina`; all-locked = every option `requires: {all:[...]}` non-null).
+Tests load fixtures via `fileURLToPath(import.meta.url)` (cwd-safe). All invalid fixtures use valid-length outcome prose so each isolates exactly one failure code. Implementation additionally checks `requires` vars against the ledger (same `UNKNOWN_VAR` code) — cheap, same rule family.
 
 - [ ] **Step 4: Write minimal validators**
 
