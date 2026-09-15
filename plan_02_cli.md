@@ -53,7 +53,7 @@ New locked dependency: `zod-to-json-schema` (schema single-sourcing for packs).
 }
 ```
 
-Locked rule: never assume major versions — `pnpm view <pkg> version` first, then pin.
+Locked citty facts (v0.2.2, verified): `runCommand(cmd, { rawArgs })` resolves `{ result }` (the `run()` return), rejects on thrown errors — tests assert on `result`. Front matter (e.g. FOREWORD) becomes its own segment; segmentation decides what to use. Init resolves the PDF path from CWD; tests pass absolute paths.
 
 - [ ] **Step 2: Write failing workdir test**
 
