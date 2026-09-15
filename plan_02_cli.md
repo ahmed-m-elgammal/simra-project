@@ -441,4 +441,4 @@ git add cli/src/lib/adapters.ts cli/src/commands/publish.ts cli/src/commands/pub
 git commit -m "feat(cli): publish dry-run + idempotent publish"
 ```
 
-Plan 02 done when: `init→ingest→segment→personas→chapter→bands→validate→build→publish` runs end-to-end on the minibook fixture using only checked-in fake agent outputs (no LLM, no network, no keys), golden bundle hash frozen, every file under 200 lines, agents get machine-readable errors on every failure path.
+Plan 02 done when: `init→ingest→segment→personas→chapter→bands→validate→build→publish` runs end-to-end on the minibook fixture using only checked-in fake agent outputs (no LLM, no network, no keys), golden bundle hash frozen, every file under 200 lines, agents get machine-readable errors on every failure path, 50+ CLI tests green (51: workdir, splitter, extractor, init/ingest, packs, submit lib, stage commands, assemble, validate/build, publish).
