@@ -1,0 +1,36 @@
+{
+  "chapter_id": "habits_ch1",
+  "order": 1,
+  "sourcing": { "mode": "invent", "quote": "" },
+  "new_variables": [],
+  "decisions": [
+    {
+      "id": "dec1",
+      "prompt": "The alarm rings at 6am. You planned a 20-minute walk.",
+      "options": [
+        {
+          "id": "dec1o1",
+          "label": "Get up and walk",
+          "intent": "Keep the promise.",
+          "next": "chapter_end",
+          "requires": null,
+          "lock_reason": "Always available.",
+          "persona_effects": [
+            { "persona_id": "maya", "delta": { "consistency": 6 }, "outcome_text": "Maya walks while streets are quiet. Consistency rises to {consistency}." },
+            { "persona_id": "omar", "delta": { "consistency": 4 }, "outcome_text": "Omar walks on tired legs today. Consistency reaches {consistency} now." }
+          ]
+        },
+        {
+          "id": "dec1o2",
+          "label": "Snooze and skip",
+          "intent": "Trade the walk for rest.",
+          "next": "chapter_end",
+          "requires": null,
+          "lock_reason": "Always available.",
+          "persona_effects": []
+        }
+      ]
+    }
+  ],
+  "recap_hints": []
+}

@@ -1,0 +1,45 @@
+{
+  "chapter_id": "habits_ch1",
+  "order": 1,
+  "sourcing": { "mode": "invent", "quote": "" },
+  "new_variables": [
+    { "key": "consistency", "label": "Consistency", "type": "scale", "range": [0, 100], "display": "bar", "default_value": 40 },
+    { "key": "energy", "label": "Energy", "type": "scale", "range": [0, 10], "display": "number", "default_value": 5 }
+  ],
+  "decisions": [
+    {
+      "id": "dec1",
+      "prompt": "The alarm rings at 6am. You planned a 20-minute walk. Your bed is warm and the day ahead is packed.",
+      "options": [
+        {
+          "id": "dec1o1",
+          "label": "Get up and walk",
+          "intent": "Keep the promise to yourself despite friction.",
+          "next": "chapter_end",
+          "requires": null,
+          "lock_reason": "Always available.",
+          "persona_effects": [
+            { "persona_id": "maya", "delta": { "consistency": 6, "energy": 1 }, "outcome_text": "Maya walks while the streets are quiet. Consistency rises to {consistency} and the morning air lifts Energy to {energy}." },
+            { "persona_id": "omar", "delta": { "consistency": 4, "energy": -1 }, "outcome_text": "Omar drags himself out and walks on tired legs. Consistency reaches {consistency} but Energy dips to {energy}." }
+          ]
+        },
+        {
+          "id": "dec1o2",
+          "label": "Snooze and skip",
+          "intent": "Trade the walk for rest.",
+          "next": "chapter_end",
+          "requires": null,
+          "lock_reason": "Always available.",
+          "persona_effects": [
+            { "persona_id": "maya", "delta": { "consistency": -5, "energy": 1 }, "outcome_text": "Maya sleeps in and feels rested for an hour. Consistency falls to {consistency} while Energy holds at {energy}." },
+            { "persona_id": "omar", "delta": { "consistency": -3, "energy": 2 }, "outcome_text": "Omar takes the extra sleep without guilt. Consistency slips to {consistency} and Energy climbs to {energy}." }
+          ]
+        }
+      ]
+    }
+  ],
+  "recap_hints": [
+    { "persona_id": "maya", "hint": "Maya faced the first morning test." },
+    { "persona_id": "omar", "hint": "Omar weighed rest against routine." }
+  ]
+}
