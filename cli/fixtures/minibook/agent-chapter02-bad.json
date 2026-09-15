@@ -1,0 +1,38 @@
+{
+  "chapter_id": "mini_ch2",
+  "order": 2,
+  "sourcing": { "mode": "invent", "quote": "" },
+  "new_variables": [],
+  "decisions": [
+    {
+      "id": "mdec2",
+      "prompt": "Evening comes and the apartment glows amber while the day's noise finally fades.",
+      "options": [
+        {
+          "id": "mdec2o1",
+          "label": "Step out for air",
+          "intent": "Clear the head before the night begins.",
+          "next": "chapter_end",
+          "requires": null,
+          "lock_reason": "Always available.",
+          "persona_effects": [
+            { "persona_id": "maya", "delta": { "consistency": 5 }, "outcome_text": "Maya steps into the cool evening air and leaves the day's noise behind her front door. The streetlights hum as her pace settles into an easy rhythm that asks nothing of her. Small choices stack quietly in her favor tonight as Consistency climbs to {consistency}." },
+            { "persona_id": "omar", "delta": { "consistency": 3 }, "outcome_text": "Omar locks the apartment and takes the long way around the block to clear his head. The evening is mild and the sidewalks are empty enough for real thinking. He replays the day without judgment and lets it go, watching Consistency rise to {consistency}." }
+          ]
+        },
+        {
+          "id": "mdec2o2",
+          "label": "Sink into the couch",
+          "intent": "Rest the body and quiet the mind.",
+          "next": "chapter_end",
+          "requires": null,
+          "lock_reason": "Always available.",
+          "persona_effects": [
+            { "persona_id": "maya", "delta": { "consistency": -4 }, "outcome_text": "Maya sinks into the couch with her phone and tells herself she has earned a still evening. An hour passes in small bright videos that leave no trace behind them. The quiet feels thinner than rest, and Consistency has slipped to {consistency} by bedtime." }
+          ]
+        }
+      ]
+    }
+  ],
+  "recap_hints": []
+}

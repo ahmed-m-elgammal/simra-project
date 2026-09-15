@@ -25,6 +25,11 @@ import { normalizeChapter } from "./normalize.js";
 import { compileBand, compileRequires } from "./precompile.js";
 import { minifyBundle } from "./minify.js";
 
+export { CanonicalChapterSchema, RequiresSchema } from "./schemas.js";
+export { auditDecision, type AuditFinding } from "./auditor.js";
+export { compileBand, compileRequires } from "./precompile.js";
+export type { Ledger };
+
 const WORD_MIN = 30;
 const WORD_MAX = 100;
 
