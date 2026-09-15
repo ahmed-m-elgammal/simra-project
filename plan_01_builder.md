@@ -1052,4 +1052,4 @@ git commit -m "test(builder): fuzz validate+compile over random chapters"
 
 Fuzz outcome texts are generated at valid word length (35-word body) so the `errs.length === 0 → compile` path is actually exercised — short texts would fail `WORD_COUNT` and the compile branch would never run. Lesson carried forward: type explicitly at every `any` boundary (this toolchain does not propagate `any` through `.map` chains).
 
-Plan 01 done when: `pnpm test` green, `pnpm typecheck` green, golden hash frozen, no network calls in any test (CI-safe), every file under 200 lines.
+Plan 01 done when: `pnpm test` green (67 tests: schemas, validators, precompiler, minify, duplicates, bands, auditor, goldens, 3-seed fuzz), `pnpm typecheck` green, golden hash frozen, no network calls in any test (CI-safe), every file under 200 lines.
