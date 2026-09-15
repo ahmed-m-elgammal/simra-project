@@ -49,9 +49,11 @@ New locked dependency: `zod-to-json-schema` (schema single-sourcing for packs).
   "type": "module",
   "bin": { "bookforge": "./dist/index.js" },
   "scripts": { "test": "vitest run", "build": "tsc -p tsconfig.json" },
-  "dependencies": { "citty": "^0.1.6", "@clack/prompts": "^2.0.0", "zod": "^3.23.0", "zod-to-json-schema": "^3.23.0", "unpdf": "^1.0.0" }
+  "dependencies": { "citty": "^0.2.2", "@clack/prompts": "^1.8.1", "zod": "^3.23.0", "zod-to-json-schema": "^3.23.0", "unpdf": "^1.0.0" }
 }
 ```
+
+Locked rule: never assume major versions — `pnpm view <pkg> version` first, then pin.
 
 - [ ] **Step 2: Write failing workdir test**
 
