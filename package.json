@@ -1,0 +1,17 @@
+{
+  "name": "bookforge",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}
