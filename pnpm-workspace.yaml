@@ -1,2 +1,4 @@
 packages:
-  - packages/*
+  - builder
+  - cli
+  - mobile
