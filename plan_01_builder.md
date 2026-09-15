@@ -470,7 +470,7 @@ git commit -m "feat(builder): normalize to byId maps + effectsByPersona pivot"
 import { describe, expect, it } from "vitest";
 import { compileRequires, compileBand } from "./precompile.js";
 
-const run = (fn: string, s: Record<string, number>): unknown => new Function("s", `return (${fn});`)(s);
+const run = (fn: string, s: Record<string, number>): unknown => new Function("s", `return (${fn})(s);`)(s);
 
 describe("precompile", () => {
   it("compiles an all-predicate", () => {
