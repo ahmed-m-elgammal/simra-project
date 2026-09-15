@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 export class CliError extends Error {
   constructor(
-    public code: "MISSING_INPUT" | "VALIDATION" | "GATE_OPEN" | "ABORTED",
+    public code: "MISSING_INPUT" | "VALIDATION" | "GATE_OPEN" | "ABORTED" | "CONFLICT",
     message: string,
     public details: unknown = null,
   ) {
@@ -38,5 +38,7 @@ export function exitCode(e: unknown): number {
     case "GATE_OPEN":
     case "ABORTED":
       return 4;
+    case "CONFLICT":
+      return 5;
   }
 }

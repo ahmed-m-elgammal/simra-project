@@ -22,7 +22,9 @@ export interface AssembledBook {
 // Pure assembly from approved workdir state. Throws CliError VALIDATION when
 // a tracked var has no new_variables declaration (persona seeds carry values
 // only — metadata must be declared once, at introduction).
-export function assembleBook(workdir: string): AssembledBook {
+// versionOverride pins the bundle version (publish uses the dist file's
+// version, since build already bumped config.next_version).
+export function assembleBook(workdir: string, versionOverride?: number): AssembledBook {
   const config = read<{ book_id: string; locale: string; next_version: number }>(workdir, "bookforge.config.json");
   const personasFile = read<{ personas?: unknown[] }>(workdir, "personas.json");
   const sim = read<{ sim_chapters: Array<{ order: number }> }>(workdir, "sim_chapters.approved.json");
@@ -73,7 +75,7 @@ export function assembleBook(workdir: string): AssembledBook {
 
   return {
     book_id: config.book_id,
-    version: config.next_version,
+    version: versionOverride ?? config.next_version,
     config: { vars: [...metas.values()], bands: bandsFile.bands },
     personas: personasFile.personas ?? [],
     chapters,

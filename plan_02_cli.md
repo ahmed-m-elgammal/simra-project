@@ -136,7 +136,7 @@ const main = defineCommand({
 runMain(main);
 ```
 
-Global flags on every command: `--workdir` (required), `--format json|human` (default human on TTY, json when piped). Exit mapping: `CliError` code MISSING_INPUT → 3, VALIDATION → 2, GATE_OPEN/ABORTED → 4; `--format json` prints `{ ok:false, code, message, details }` on stdout.
+Global flags on every command: `--workdir` (required), `--format json|human` (default human on TTY, json when piped). Exit mapping: `CliError` code MISSING_INPUT → 3, VALIDATION → 2, GATE_OPEN/ABORTED → 4, CONFLICT → 5; `--format json` prints `{ ok:false, code, message, details }` on stdout.
 
 Scaffold rule: every lazily-imported command file exists from Task 1 as a typed stub (throws `ABORTED` "not implemented yet") so `pnpm typecheck` stays green while Tasks 2-6 land. Stubs are replaced, never extended, by their task.
 

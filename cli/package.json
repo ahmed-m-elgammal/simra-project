@@ -12,6 +12,7 @@
   "dependencies": {
     "@app/bundle-builder": "workspace:^",
     "@clack/prompts": "^1.8.1",
+    "@supabase/supabase-js": "^2.116.0",
     "citty": "^0.2.2",
     "unpdf": "^1.0.0",
     "zod": "^3.23.0"

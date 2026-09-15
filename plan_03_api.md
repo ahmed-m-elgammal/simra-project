@@ -49,6 +49,7 @@ create table books (
   status text not null default 'draft' check (status in ('draft','published')),
   bundle_version int not null default 0,
   bundle_url text not null default '',
+  bundle_sha text not null default '',
   updated_at timestamptz not null default now()
 );
 create table book_configs (
