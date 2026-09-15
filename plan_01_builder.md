@@ -690,7 +690,7 @@ describe("screenDuplicates", () => {
 });
 ```
 
-`FakeEmbeddings` takes a lookup `{ "a\0b": score }` and returns unit vectors with that exact cosine (implement as 2D vectors: `a=[1,0]`, `b=[score, sqrt(1-score²)]`).
+`FakeEmbeddings` exposes a public `getSim(a, b)` lookup (bidirectional) instead of reaching into internals; the sync `screenDuplicates` uses it. Fixture similarity keys use `\u0000` separators (JSON has no `\0` escape). `@huggingface/transformers` is a real installed dependency for types + manual runs — just never imported by unit tests, so CI downloads no model.
 
 - [ ] **Step 2: Run test to verify it fails**
 
