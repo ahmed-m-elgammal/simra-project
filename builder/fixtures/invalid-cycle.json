@@ -1,0 +1,45 @@
+{
+  "chapter_id": "habits_ch1",
+  "order": 1,
+  "sourcing": { "mode": "invent", "quote": "" },
+  "new_variables": [],
+  "decisions": [
+    {
+      "id": "dec1",
+      "prompt": "The alarm rings at 6am and the day ahead is already packed with meetings.",
+      "options": [
+        {
+          "id": "dec1o1",
+          "label": "Walk first",
+          "intent": "Move before the day starts.",
+          "next": "dec2",
+          "requires": null,
+          "lock_reason": "Always available.",
+          "persona_effects": [
+            { "persona_id": "maya", "delta": { "consistency": 3 }, "outcome_text": "Maya laces her shoes before doubt can finish its sentence and steps into the gray morning. The first ten minutes feel stiff, then her stride loosens and the day's noise drops away. By the time she turns for home, Consistency has climbed to {consistency} and the cold air has lifted Energy to {energy}." },
+            { "persona_id": "omar", "delta": { "consistency": 2 }, "outcome_text": "Omar swings his legs out of bed and regrets it instantly, but the shoes are by the door and yesterday's promise is louder than comfort. He walks the short loop with heavy eyes and a buzzing phone he refuses to check. Consistency reaches {consistency} by the final corner, though Energy has slipped to {energy}." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dec2",
+      "prompt": "Back home, breakfast waits and the clock keeps ticking loudly onward.",
+      "options": [
+        {
+          "id": "dec2o1",
+          "label": "Eat standing",
+          "intent": "Save every minute possible.",
+          "next": "dec1",
+          "requires": null,
+          "lock_reason": "Always available.",
+          "persona_effects": [
+            { "persona_id": "maya", "delta": { "energy": 1 }, "outcome_text": "Maya silences the alarm and sinks back into the warm hollow of the pillow, telling herself that rest is also discipline. For an hour it works, and the morning feels soft and unhurried around the edges. But the skipped walk sits quietly underneath everything, and Consistency has fallen to {consistency} while Energy holds at {energy}." },
+            { "persona_id": "omar", "delta": { "energy": 1 }, "outcome_text": "Omar turns off the alarm without opening his eyes and lets sleep pull him back under for one more slow cycle. He wakes naturally to sunlight and a quiet apartment, genuinely restored and unhurried for once. The routine can wait a day, he decides, as Consistency slips to {consistency} and Energy climbs to {energy}." }
+          ]
+        }
+      ]
+    }
+  ],
+  "recap_hints": []
+}
