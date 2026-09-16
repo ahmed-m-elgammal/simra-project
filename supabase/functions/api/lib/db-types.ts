@@ -20,6 +20,8 @@ export type ClaimFreeResult =
   | { status: "limit_reached"; remaining: 0 }
   | { status: "not_found" };
 
+export type RevenueEventAction = "grant" | "revoke" | "none";
+
 export interface RevenueEventRecord {
   eventId: string;
   appUserId: string;
@@ -58,6 +60,13 @@ export interface Db {
   recordRevenueEvent(event: RevenueEventRecord): Promise<{ inserted: boolean }>;
   upsertEntitlement(appUserId: string, bookId: string, source?: string): Promise<void>;
   deleteEntitlement(appUserId: string, bookId: string): Promise<void>;
+  /**
+   * Records the idempotency marker and applies the grant/revoke in ONE
+   * transaction (security-definer RPC on Supabase). Replays (duplicate
+   * event_id) return { inserted: false } and never re-apply, so a failed
+   * apply can always be retried safely by RevenueCat.
+   */
+  applyRevenueEvent(event: RevenueEventRecord, action: RevenueEventAction): Promise<{ inserted: boolean }>;
 
   // Account
   getAccount(appUserId: string): Promise<AccountRecord | null>;

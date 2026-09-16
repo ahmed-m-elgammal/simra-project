@@ -2,7 +2,21 @@ import type { Hono } from "jsr:@hono/hono";
 import { paymentsEnabled } from "../lib/flags.ts";
 import type { Ctx, Variables } from "../index.ts";
 
-const ACCESS_CACHE_TTL_SEC = 60;
+// Access decisions are cached per user+book with ASYMMETRIC TTLs:
+//   - denials ("0") expire after 5s — a user who pays mid-session is unlocked
+//     on their next retry instead of being LOCKED for up to a minute;
+//   - allows ("1") live 60s to keep the hot path cheap (after a refund the
+//     stale access is bounded to 60s).
+//
+// Redis invalidation plan (when the Cache seam grows a shared backend, per
+// plan_03_api.md "memory impl (Redis later, same interface)"): on webhook
+// grant/revoke, delete `ent:{app_user_id}:{book_id}` — or, to avoid wildcard
+// scans, stamp a per-user entitlements_version into the key and bump the
+// counter in apply_revenue_event's transaction. Per-isolate MemoryCache cannot
+// be invalidated cross-isolate, which is exactly why the bounded TTLs remain
+// the safety net even after the shared cache lands.
+const ACCESS_ALLOW_TTL_SEC = 60;
+const ACCESS_DENY_TTL_SEC = 5;
 
 export function registerBundleRoute(api: Hono<{ Variables: Variables }>): void {
   api.get("/books/:id/bundle", async (c) => {
@@ -32,7 +46,7 @@ async function cachedAccess(ctx: Ctx, appUserId: string, bookId: string): Promis
 
   const access = await ctx.db.checkAccess(appUserId, [bookId]);
   const allowed = access.claimedBookIds.includes(bookId) || access.entitledBookIds.includes(bookId);
-  await ctx.cache.set(cacheKey, allowed ? "1" : "0", ACCESS_CACHE_TTL_SEC);
+  await ctx.cache.set(cacheKey, allowed ? "1" : "0", allowed ? ACCESS_ALLOW_TTL_SEC : ACCESS_DENY_TTL_SEC);
   return allowed;
 }
 

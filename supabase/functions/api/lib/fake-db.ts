@@ -6,6 +6,7 @@ import type {
   ClaimFreeResult,
   Db,
   FakeDbOptions,
+  RevenueEventAction,
   RevenueEventRecord,
 } from "./db-types.ts";
 
@@ -94,6 +95,15 @@ export class FakeDb implements Db {
 
   async deleteEntitlement(appUserId: string, bookId: string): Promise<void> {
     this.entitlements.delete(this.key(appUserId, bookId));
+  }
+
+  // Single in-memory step: marker + apply are trivially atomic on the fake.
+  async applyRevenueEvent(event: RevenueEventRecord, action: RevenueEventAction): Promise<{ inserted: boolean }> {
+    if (this.revenueEvents.has(event.eventId)) return { inserted: false };
+    this.revenueEvents.set(event.eventId, { ...event });
+    if (action === "grant") this.entitlements.add(this.key(event.appUserId, event.bookId));
+    else if (action === "revoke") this.entitlements.delete(this.key(event.appUserId, event.bookId));
+    return { inserted: true };
   }
 
   // --- Account ---

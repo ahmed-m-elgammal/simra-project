@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert";
 import { app } from "./index.ts";
-import { MemoryCache } from "./lib/cache.ts";
+import { MemoryCache, type Cache } from "./lib/cache.ts";
 import { FakeDb, SupabaseDb, type BookRecord, type BookStatus, type FakeDbOptions } from "./lib/db.ts";
 import { context, seededDb } from "./test-fixtures.ts";
 
@@ -758,3 +758,112 @@ Deno.test("SupabaseDb deletes entitlement", async () => {
   assertEquals(calls[0].url.includes("book_id=eq.%2A"), true);
 });
 
+
+// --- P1-1: atomic apply_revenue_event (marker + entitlement in one call) ---
+
+Deno.test("SupabaseDb applies revenue events through the atomic RPC", async () => {
+  const { db, calls } = adapter([jsonResponse({ inserted: true })]);
+  const result = await db.applyRevenueEvent(
+    { eventId: "evt_atomic_1", appUserId: "u1", bookId: "*", type: "INITIAL_PURCHASE" },
+    "grant",
+  );
+  assertEquals(result, { inserted: true });
+  assertEquals(calls[0].url.includes("/rest/v1/rpc/apply_revenue_event"), true);
+  const parsedBody = JSON.parse(String(calls[0].init?.body));
+  assertEquals(parsedBody.p_event_id, "evt_atomic_1");
+  assertEquals(parsedBody.p_app_user_id, "u1");
+  assertEquals(parsedBody.p_book_id, "*");
+  assertEquals(parsedBody.p_type, "INITIAL_PURCHASE");
+  assertEquals(parsedBody.p_action, "grant");
+});
+
+Deno.test("SupabaseDb reports replayed revenue events as not inserted", async () => {
+  const { db } = adapter([jsonResponse({ inserted: false })]);
+  const result = await db.applyRevenueEvent(
+    { eventId: "evt_replay", appUserId: "u1", bookId: "habits", type: "INITIAL_PURCHASE" },
+    "grant",
+  );
+  assertEquals(result, { inserted: false });
+});
+
+Deno.test("SupabaseDb rejects an invalid apply_revenue_event response", async () => {
+  const { db } = adapter([jsonResponse({ unexpected: true })]);
+  await assertFailure(
+    () => db.applyRevenueEvent({ eventId: "e", appUserId: "u", bookId: "", type: "TEST" }, "none"),
+    "invalid",
+  );
+});
+
+Deno.test("FakeDb.applyRevenueEvent records and applies in one step", async () => {
+  const db = new FakeDb();
+  assertEquals(
+    await db.applyRevenueEvent({ eventId: "e1", appUserId: "u", bookId: "habits", type: "INITIAL_PURCHASE" }, "grant"),
+    { inserted: true },
+  );
+  assertEquals(db.hasEntitlement("u", "habits"), true);
+
+  // Replay returns inserted=false and must not resurrect a revoked entitlement.
+  assertEquals(
+    await db.applyRevenueEvent({ eventId: "e1", appUserId: "u", bookId: "habits", type: "INITIAL_PURCHASE" }, "grant"),
+    { inserted: false },
+  );
+  assertEquals(
+    await db.applyRevenueEvent({ eventId: "e2", appUserId: "u", bookId: "habits", type: "EXPIRATION" }, "revoke"),
+    { inserted: true },
+  );
+  assertEquals(db.hasEntitlement("u", "habits"), false);
+  assertEquals(db.hasRevenueEvent("e2"), true);
+
+  // Informational events are recorded without touching entitlements.
+  assertEquals(
+    await db.applyRevenueEvent({ eventId: "e3", appUserId: "u2", bookId: "", type: "TEST" }, "none"),
+    { inserted: true },
+  );
+  assertEquals(db.hasRevenueEvent("e3"), true);
+  assertEquals(db.hasEntitlement("u2", "habits"), false);
+});
+
+// --- P1-2: asymmetric access-cache TTL (denials 5s, allows 60s) ---
+
+class RecordingCache implements Cache {
+  readonly sets: Array<{ key: string; value: string; ttlSec: number }> = [];
+  private readonly backing = new Map<string, { value: string; expiresAtMs: number }>();
+
+  async get(key: string): Promise<string | null> {
+    const entry = this.backing.get(key);
+    if (!entry) return null;
+    if (entry.expiresAtMs <= Date.now()) {
+      this.backing.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  async set(key: string, value: string, ttlSec: number): Promise<void> {
+    this.sets.push({ key, value, ttlSec });
+    this.backing.set(key, { value, expiresAtMs: Date.now() + ttlSec * 1000 });
+  }
+}
+
+Deno.test("bundle gate caches denials for 5s and allows for 60s", async () => {
+  const db = seededDb({ payments_enabled: true });
+  const cache = new RecordingCache();
+  const ctx = context({}, {}, db, cache);
+  await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_fresh" } });
+  await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_ent" } });
+  const deny = cache.sets.find((s) => s.value === "0");
+  const allow = cache.sets.find((s) => s.value === "1");
+  assertEquals(deny?.key, "ent:u_fresh:habits");
+  assertEquals(deny?.ttlSec, 5);
+  assertEquals(allow?.key, "ent:u_ent:habits");
+  assertEquals(allow?.ttlSec, 60);
+});
+
+Deno.test("bundle gate serves a cached denial without a second access check", async () => {
+  const db = seededDb({ payments_enabled: true });
+  const cache = new RecordingCache();
+  const ctx = context({}, {}, db, cache);
+  await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_fresh" } });
+  await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_fresh" } });
+  assertEquals(db.checkAccessCalls, 1);
+});

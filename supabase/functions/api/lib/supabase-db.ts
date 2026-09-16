@@ -5,6 +5,7 @@ import type {
   BookRecord,
   ClaimFreeResult,
   Db,
+  RevenueEventAction,
   RevenueEventRecord,
 } from "./db-types.ts";
 import { SupabaseClient } from "./supabase-client.ts";
@@ -111,6 +112,23 @@ export class SupabaseDb implements Db {
       method: "DELETE",
       headers: { Prefer: "return=minimal" },
     });
+  }
+
+  async applyRevenueEvent(event: RevenueEventRecord, action: RevenueEventAction): Promise<{ inserted: boolean }> {
+    const result = await this.client.getJson("/rest/v1/rpc/apply_revenue_event", "apply revenue event", {
+      method: "POST",
+      body: JSON.stringify({
+        p_event_id: event.eventId,
+        p_app_user_id: event.appUserId,
+        p_book_id: event.bookId,
+        p_type: event.type,
+        p_action: action,
+      }),
+    });
+    if (result === null || typeof result !== "object") throw new Error("apply revenue event returned an invalid response");
+    const val = result as Record<string, unknown>;
+    if (typeof val.inserted !== "boolean") throw new Error("apply revenue event returned an invalid result");
+    return { inserted: val.inserted };
   }
 
   async getAccount(appUserId: string): Promise<AccountRecord | null> {

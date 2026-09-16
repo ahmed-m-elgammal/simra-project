@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { DataType, newDb } from "pg-mem";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const migration = ["001_core.sql", "002_api_catalog_claims.sql", "003_flags_rls.sql"]
+const migration = ["001_core.sql", "002_api_catalog_claims.sql", "003_flags_rls.sql", "004_revenue_apply.sql"]
   .map((name) => readFileSync(join(root, "supabase", "migrations", name), "utf8"))
   .join("\n");
 
@@ -28,12 +28,13 @@ if (!/pg_advisory_xact_lock\(hashtextextended\(p_app_user_id, 0\)\)/i.test(migra
   throw new Error("claim_free must serialize claims per app user");
 }
 
-// pg-mem does not execute PL/pgSQL; validate the function's critical lock text
-// above and execute the migration's relational DDL here.
+// pg-mem does not execute PL/pgSQL; validate the functions' critical lock text
+// above and execute the migrations' relational DDL here. Strip every
+// security-definer function body (claim_free, apply_revenue_event, ...).
 const executableMigration = migration
-  .replace(/create or replace function public\.claim_free[\s\S]*?\$\$;\s*/i, "")
-  .replace(/^revoke all on function public\.claim_free.*$/gmi, "")
-  .replace(/^grant execute on function public\.claim_free.*$/gmi, "")
+  .replace(/create or replace function public\.\w+[\s\S]*?\$\$;\s*/gi, "")
+  .replace(/^revoke all on function public\.\w+.*$/gmi, "")
+  .replace(/^grant execute on function public\.\w+.*$/gmi, "")
   .replace(/^\s*;\s*$/gm, "");
 const stripped = executableMigration
   .split("\n")

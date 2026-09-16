@@ -1,4 +1,4 @@
-import { MemoryCache } from "./lib/cache.ts";
+import { MemoryCache, type Cache } from "./lib/cache.ts";
 import { FakeDb, type BookRecord } from "./lib/db.ts";
 import type { Ctx } from "./index.ts";
 
@@ -28,7 +28,7 @@ export function seededDb(flags: Record<string, unknown> = {}): FakeDb {
   });
 }
 
-export function context(flags: Record<string, unknown> = {}, env: Record<string, string> = {}, db = seededDb(flags)): Ctx {
-  return { db, cache: new MemoryCache(), env: { REVENUECAT_WEBHOOK_SECRET: "test_rc_secret", ...env } };
+export function context(flags: Record<string, unknown> = {}, env: Record<string, string> = {}, db = seededDb(flags), cache: Cache = new MemoryCache()): Ctx {
+  return { db, cache, env: { REVENUECAT_WEBHOOK_SECRET: "test_rc_secret", ...env } };
 }
 

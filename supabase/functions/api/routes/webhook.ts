@@ -1,8 +1,7 @@
 import type { Hono } from "jsr:@hono/hono";
 import { timingSafeEqual } from "jsr:@std/crypto/timing-safe-equal";
+import type { RevenueEventAction } from "../lib/db-types.ts";
 import type { Ctx, Variables } from "../index.ts";
-
-type EntitlementAction = "grant" | "revoke" | "none";
 
 async function verifyWebhookSecret(authHeader: string | undefined, expectedSecret: string): Promise<boolean> {
   if (!authHeader || !expectedSecret) return false;
@@ -51,7 +50,7 @@ function extractTargetBookId(record: Record<string, unknown>, eventObj?: Record<
   return null;
 }
 
-function classifyAction(rawType: string): EntitlementAction {
+function classifyAction(rawType: string): RevenueEventAction {
   const normalized = rawType.trim().toUpperCase();
   if (
     normalized === "PURCHASE" ||
@@ -122,23 +121,15 @@ export function registerWebhookRoute(api: Hono<{ Variables: Variables }>): void 
       return c.json({ ok: false, error: { code: "INVALID", message: "missing book_id or entitlement" } }, 400);
     }
 
-    const { inserted } = await ctx.db.recordRevenueEvent({
-      eventId,
-      appUserId,
-      bookId: targetBookId ?? "",
-      type: eventType,
-    });
-
-    // Idempotency: duplicate event_id returns 200 without re-applying.
-    if (!inserted) {
-      return c.json({ ok: true }, 200);
-    }
-
-    if (action === "grant" && targetBookId) {
-      await ctx.db.upsertEntitlement(appUserId, targetBookId, "revenuecat");
-    } else if (action === "revoke" && targetBookId) {
-      await ctx.db.deleteEntitlement(appUserId, targetBookId);
-    }
+    // Atomic apply (migration 004): the security-definer RPC records the
+    // idempotency marker and applies grant/revoke in ONE transaction. A
+    // transient failure now rolls back both, so RevenueCat's retry cleanly
+    // re-applies instead of hitting a committed marker and silently dropping
+    // the event's effect.
+    await ctx.db.applyRevenueEvent(
+      { eventId, appUserId, bookId: targetBookId ?? "", type: eventType },
+      action,
+    );
 
     return c.json({ ok: true }, 200);
   });
