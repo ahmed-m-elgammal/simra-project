@@ -53,6 +53,31 @@ Deno.test("memory cache stores values and expires them by TTL", async () => {
   assertEquals(await cache.get("expired"), null);
 });
 
+Deno.test("memory cache evicts the least-recently-used entry past its size cap", async () => {
+  const cache = new MemoryCache({ maxEntries: 3 });
+  await cache.set("a", "1", 60);
+  await cache.set("b", "2", 60);
+  await cache.set("c", "3", 60);
+  assertEquals(await cache.get("a"), "1"); // refresh a → b becomes the LRU entry
+  await cache.set("d", "4", 60);
+  assertEquals(await cache.get("b"), null);
+  assertEquals(await cache.get("a"), "1");
+  assertEquals(await cache.get("c"), "3");
+  assertEquals(await cache.get("d"), "4");
+});
+
+Deno.test("memory cache frees expired entries before evicting live ones", async () => {
+  const cache = new MemoryCache({ maxEntries: 3 });
+  await cache.set("e1", "1", 0); // already expired
+  await cache.set("e2", "2", 60);
+  await cache.set("e3", "3", 60);
+  await cache.set("e4", "4", 60); // overflow → expired e1 is swept, all live entries stay
+  assertEquals(await cache.get("e1"), null);
+  assertEquals(await cache.get("e2"), "2");
+  assertEquals(await cache.get("e3"), "3");
+  assertEquals(await cache.get("e4"), "4");
+});
+
 Deno.test("catalog returns the seeded book unlocked in phase 0", async () => {
   const res = await app(context()).request("/catalog", { headers: { "x-app-user-id": "u_fresh" } });
   assertEquals(res.status, 200);

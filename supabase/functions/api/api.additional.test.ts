@@ -126,6 +126,26 @@ Deno.test("memory cache rejects NaN TTL", async () => {
   await assertFailure(() => new MemoryCache().set("key", "value", Number.NaN), "finite");
 });
 
+Deno.test("memory cache stays at the size cap under unbounded churn", async () => {
+  const cache = new MemoryCache({ maxEntries: 5 });
+  for (let i = 0; i < 50; i++) await cache.set(`k${i}`, "v", 60);
+  assertEquals(cache.size, 5);
+  assertEquals(await cache.get("k0"), null); // earliest entries were evicted
+  assertEquals(await cache.get("k49"), "v"); // latest entries survive
+});
+
+Deno.test("memory cache rejects an invalid maxEntries option", () => {
+  for (const maxEntries of [0, -1, 1.5, Number.NaN]) {
+    let message = "";
+    try {
+      new MemoryCache({ maxEntries });
+    } catch (error) {
+      message = String(error);
+    }
+    assertEquals(message.includes("positive integer"), true);
+  }
+});
+
 const knownVersionCases = [
   { value: "habits:0", expected: true },
   { value: "habits:1", expected: false },
