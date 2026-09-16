@@ -22,6 +22,7 @@ export class FakeDb implements Db {
   private readonly devices = new Map<string, { token: string; appUserId: string; platform: string; locale: string }>();
   listBooksCalls = 0;
   checkAccessCalls = 0;
+  getFlagsCalls = 0;
 
   constructor(flags: Record<string, unknown> = {}, options: FakeDbOptions = {}) {
     this.flags = { ...flags };
@@ -37,7 +38,10 @@ export class FakeDb implements Db {
 
   private key(a: string, b: string): string { return `${a}\u0000${b}`; }
 
-  async getFlags(): Promise<Record<string, unknown>> { return { ...this.flags }; }
+  async getFlags(): Promise<Record<string, unknown>> {
+    this.getFlagsCalls += 1;
+    return { ...this.flags };
+  }
 
   async listBooks(): Promise<readonly BookRecord[]> {
     this.listBooksCalls += 1;

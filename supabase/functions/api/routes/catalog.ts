@@ -24,11 +24,17 @@ export function registerCatalogRoute(api: Hono<{ Variables: Variables }>): void 
     const known = parseKnownVersions(c.req.query("known"));
     if (known instanceof Response) return known;
 
-    const books = await cachedBooks(ctx);
-    const access = await ctx.db.checkAccess(c.get("uid"), books.map((book) => book.id));
-    const payments = await paymentsEnabled({ db: ctx.db, env: ctx.env });
-    const claimed = new Set(access.claimedBookIds);
-    const entitled = new Set(access.entitledBookIds);
+    // Books metadata and the payments flag are independent reads → fetch
+    // them together. In Phase 0 (payments off) every book is unlocked and
+    // price_tier is constant, so the per-user access query is skipped
+    // entirely instead of paying two wasted GETs per request (review P2-3).
+    const [books, payments] = await Promise.all([
+      cachedBooks(ctx),
+      paymentsEnabled({ db: ctx.db, env: ctx.env, cache: ctx.cache }),
+    ]);
+    const access = payments ? await ctx.db.checkAccess(c.get("uid"), books.map((book) => book.id)) : null;
+    const claimed = new Set(access?.claimedBookIds ?? []);
+    const entitled = new Set(access?.entitledBookIds ?? []);
     const response: CatalogBook[] = books.map((book) => {
       const unlocked = !payments || claimed.has(book.id) || entitled.has(book.id);
       const knownVersion = known.get(book.id);
@@ -36,7 +42,7 @@ export function registerCatalogRoute(api: Hono<{ Variables: Variables }>): void 
         id: book.id,
         title: book.title,
         description: book.description,
-        price_tier: payments && !unlocked && access.freeClaimCount < 3 ? "free_eligible" : "paid",
+        price_tier: payments && !unlocked && (access?.freeClaimCount ?? 0) < 3 ? "free_eligible" : "paid",
         unlocked_for_me: unlocked,
         bundle_version: book.bundle_version,
         has_update: knownVersion !== undefined && knownVersion < book.bundle_version,

@@ -21,12 +21,20 @@ const ACCESS_DENY_TTL_SEC = 5;
 export function registerBundleRoute(api: Hono<{ Variables: Variables }>): void {
   api.get("/books/:id/bundle", async (c) => {
     const ctx = c.get("ctx") as Ctx;
-    const book = await ctx.db.getBook(c.req.param("id"));
+    // Book metadata and the payments flag are independent reads: start them
+    // concurrently so the gate pays one serial latency stage instead of two
+    // (review P2-2). The flag read is TTL-cached, so on the hot path it
+    // resolves locally; on the 404 path the speculative read is wasted but
+    // harmless.
+    const [book, payments] = await Promise.all([
+      ctx.db.getBook(c.req.param("id")),
+      paymentsEnabled({ db: ctx.db, env: ctx.env, cache: ctx.cache }),
+    ]);
     if (!book || book.status !== "published" || book.bundle_url === "") {
       return c.json({ ok: false, error: { code: "NOT_FOUND", message: "book not found" } }, 404);
     }
 
-    if (await paymentsEnabled({ db: ctx.db, env: ctx.env })) {
+    if (payments) {
       const allowed = await cachedAccess(ctx, c.get("uid"), book.id);
       if (!allowed) return c.json({ ok: false, error: { code: "LOCKED", message: "book is locked" } }, 403);
     }

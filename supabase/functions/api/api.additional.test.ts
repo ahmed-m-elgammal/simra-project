@@ -2,7 +2,7 @@ import { assertEquals } from "jsr:@std/assert";
 import { app } from "./index.ts";
 import { MemoryCache, type Cache } from "./lib/cache.ts";
 import { FakeDb, SupabaseDb, type BookRecord, type BookStatus, type FakeDbOptions } from "./lib/db.ts";
-import { context, seededDb } from "./test-fixtures.ts";
+import { context, minibookFixture, seededDb } from "./test-fixtures.ts";
 
 function makeBook(id: string, version = 1, status: BookStatus = "published", bundleUrl = `bundles/${id}-v${version}.json`): BookRecord {
   return { id, title: `Title ${id}`, description: `Description ${id}`, status, bundle_version: version, bundle_url: bundleUrl };
@@ -866,4 +866,62 @@ Deno.test("bundle gate serves a cached denial without a second access check", as
   await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_fresh" } });
   await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_fresh" } });
   assertEquals(db.checkAccessCalls, 1);
+});
+
+// --- flags caching + gate concurrency (P2-1 / P2-2 / P2-3) ---
+
+Deno.test("catalog serves flags from the cache before the database", async () => {
+  const db = seededDb();
+  const cache = new MemoryCache();
+  await cache.set("flags:all", JSON.stringify({ payments_enabled: true }), 60);
+  const ctx = context({}, {}, db, cache);
+  const res = await app(ctx).request("/catalog", { headers: { "x-app-user-id": "u_fresh" } });
+  assertEquals(res.status, 200);
+  assertEquals((await res.json()).books[0].price_tier, "free_eligible");
+  assertEquals(db.getFlagsCalls, 0);
+});
+
+Deno.test("catalog recovers from corrupt flags cache data", async () => {
+  const db = seededDb();
+  const cache = new MemoryCache();
+  await cache.set("flags:all", "not-json", 60);
+  const ctx = context({}, {}, db, cache);
+  const res = await app(ctx).request("/catalog", { headers: { "x-app-user-id": "u_fresh" } });
+  assertEquals(res.status, 200);
+  assertEquals(db.getFlagsCalls, 1);
+});
+
+// Records the interleaving of the two independent gate lookups: a concurrent
+// route overlaps their start/end events, a serial chain cannot.
+class InstrumentedDb extends FakeDb {
+  readonly events: string[] = [];
+
+  private async pause(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 15));
+  }
+
+  override async getFlags(): Promise<Record<string, unknown>> {
+    this.events.push("flags:start");
+    await this.pause();
+    this.events.push("flags:end");
+    return super.getFlags();
+  }
+
+  override async getBook(bookId: string): Promise<BookRecord | null> {
+    this.events.push("book:start");
+    await this.pause();
+    this.events.push("book:end");
+    return super.getBook(bookId);
+  }
+}
+
+Deno.test("bundle gate resolves the book and the payments flag concurrently", async () => {
+  const db = new InstrumentedDb({}, { books: minibookFixture });
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_fresh" } });
+  assertEquals(res.status, 302);
+  assertEquals(db.events.includes("flags:start"), true);
+  assertEquals(db.events.includes("book:start"), true);
+  assertEquals(db.events.indexOf("flags:start") < db.events.indexOf("book:end"), true);
+  assertEquals(db.events.indexOf("book:start") < db.events.indexOf("flags:end"), true);
 });

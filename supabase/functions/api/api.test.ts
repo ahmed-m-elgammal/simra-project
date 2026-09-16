@@ -86,6 +86,38 @@ Deno.test("catalog uses known versions to report updates and caches the publishe
   assertEquals(db.listBooksCalls, 1);
 });
 
+Deno.test("phase 0 catalog skips the per-user access lookup entirely", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/catalog", { headers: { "x-app-user-id": "u_fresh" } });
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.books[0].unlocked_for_me, true);
+  assertEquals(body.books[0].price_tier, "paid");
+  assertEquals(db.checkAccessCalls, 0);
+});
+
+Deno.test("paid-mode catalog still resolves per-user access", async () => {
+  const db = seededDb({ payments_enabled: true });
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/catalog", { headers: { "x-app-user-id": "u_fresh" } });
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.books[0].unlocked_for_me, false);
+  assertEquals(body.books[0].price_tier, "free_eligible");
+  assertEquals(db.checkAccessCalls, 1);
+});
+
+Deno.test("flags query runs once per cache window across routes", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const catalog = await app(ctx).request("/catalog", { headers: { "x-app-user-id": "u_fresh" } });
+  const bundle = await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_fresh" } });
+  assertEquals(catalog.status, 200);
+  assertEquals(bundle.status, 302);
+  assertEquals(db.getFlagsCalls, 1);
+});
+
 Deno.test("phase 0 claim logs demand data without enforcing the limit", async () => {
   const db = seededDb();
   const res = await app(context({}, {}, db)).request("/books/habits/claim-free", {
