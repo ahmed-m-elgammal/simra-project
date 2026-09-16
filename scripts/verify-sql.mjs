@@ -9,12 +9,15 @@ import { dirname, join } from "node:path";
 import { DataType, newDb } from "pg-mem";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const migration = ["001_core.sql", "002_api_catalog_claims.sql"]
+const migration = ["001_core.sql", "002_api_catalog_claims.sql", "003_flags_rls.sql"]
   .map((name) => readFileSync(join(root, "supabase", "migrations", name), "utf8"))
   .join("\n");
 
 // 1. Every data table must carry an RLS enable line (live deny proven on Docker).
-const tables = ["books", "book_configs", "personas", "chapters", "decisions", "options", "entitlements", "free_claims", "devices", "progress", "requests", "revenue_events", "backups", "accounts"];
+// Table names are extracted from the migration itself instead of a hardcoded
+// list — a new table without `enable row level security` now fails this gate.
+const tables = [...migration.matchAll(/^create table\s+(?:if\s+not\s+exists\s+)?["]?([a-zA-Z_][a-zA-Z0-9_]*)["]?\s*\(/gim)].map((m) => m[1]);
+if (tables.length === 0) throw new Error("no create table statements found in migrations");
 for (const t of tables) {
   if (!migration.includes(`alter table ${t} enable row level security`)) {
     throw new Error(`missing RLS line for ${t}`);
