@@ -79,4 +79,23 @@ describe("ingest", () => {
       setExtractor(undefined);
     }
   });
+  it("rescues a graphic-title book via the page-structure fallback (F1)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "bf-"));
+    const pdf = join(dir, "graphic.pdf");
+    writeFileSync(pdf, "x");
+    const prose = "Body prose without headings. ".repeat(30);
+    const graphicPages = ["", "", prose, "", prose, prose, "", prose];
+    setExtractor(new StubExtractor(graphicPages));
+    try {
+      await runCommand(init, { rawArgs: [pdf, "--workdir", dir, "--locale", "en"] });
+      const { result: res } = (await runCommand(ingest, { rawArgs: ["--workdir", dir] })) as any;
+      expect(res.chapters).toBe(3);
+      expect(res.markers).toEqual({ regex: 0, fallback: 0, heuristic: 3 });
+      const raw = JSON.parse(readFileSync(join(dir, "raw_chapters.json"), "utf8"));
+      expect(raw.every((c: any) => c.marker_type === "heuristic")).toBe(true);
+      expect(raw[1].text).toContain("Body prose");
+    } finally {
+      setExtractor(undefined);
+    }
+  });
 });

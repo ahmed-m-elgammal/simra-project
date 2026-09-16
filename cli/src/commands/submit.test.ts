@@ -17,6 +17,16 @@ const fx = (n: string) => join(fxDir, n);
 const seedWorkdir = seedFullWorkdir;
 
 describe("submit + approve", () => {
+  it("stores a valid chapter on a fresh workdir without a pre-created chapters/ dir (F2)", async () => {
+    const dir = seedWorkdir();
+    rmSync(join(dir, "chapters"), { recursive: true, force: true });
+    const { result } = (await runCommand(chapterSubmit, { rawArgs: ["--workdir", dir, "--n", "2", "--file", fx("agent-chapter02-good.json")] })) as any;
+    expect(result.ok).toBe(true);
+    expect(result.stored).toBe("chapters/02.json");
+    expect(existsSync(join(dir, "chapters", "02.json"))).toBe(true);
+    const { result: approved } = (await runCommand(chapterApprove, { rawArgs: ["--workdir", dir, "--n", "2"] })) as any;
+    expect(approved.approved).toBe("chapters/02.approved.json");
+  });
   it("stores a valid chapter and reports warnings array", async () => {
     const dir = seedWorkdir();
     const { result } = (await runCommand(chapterSubmit, { rawArgs: ["--workdir", dir, "--n", "2", "--file", fx("agent-chapter02-good.json")] })) as any;

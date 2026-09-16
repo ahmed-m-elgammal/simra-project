@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeFileSync } from "node:fs";
 import { CliError, exitCode, readState, statePath, writeState } from "./workdir.js";
 
 describe("workdir", () => {
@@ -36,6 +35,22 @@ describe("workdir", () => {
     } catch (e) {
       expect(e).toBeInstanceOf(CliError);
       expect((e as CliError).code).toBe("VALIDATION");
+    }
+  });
+  it("creates nested parent dirs for subpath state names (F2)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bf-"));
+    writeState(dir, "chapters/01.json", { order: 1 });
+    expect(readState(dir, "chapters/01.json")).toEqual({ order: 1 });
+    writeState(dir, "a/b/c.json", { deep: true });
+    expect(readState(dir, "a/b/c.json")).toEqual({ deep: true });
+  });
+  it("creates the workdir itself when it does not exist yet", () => {
+    const dir = join(tmpdir(), `bf-fresh-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    try {
+      writeState(dir, "x.json", { ok: 1 });
+      expect(readState(dir, "x.json")).toEqual({ ok: 1 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

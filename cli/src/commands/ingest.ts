@@ -20,15 +20,20 @@ export default defineCommand({
     }
     const bytes = new Uint8Array(readFileSync(config.pdf_path));
     const { pages } = await getExtractor().extractText(bytes);
-    const chapters = splitChapters(pages.join("\n"));
+    const fullText = pages.join("\n");
+    const chapters = splitChapters(fullText, { pages });
     writeState(workdir, "raw_chapters.json", chapters);
-    writeFileSync(join(workdir, "raw_full.txt"), pages.join("\n"));
+    writeFileSync(join(workdir, "raw_full.txt"), fullText);
     const regex = chapters.filter((c) => c.marker_type === "regex").length;
-    const result = { ok: true as const, chapters: chapters.length, markers: { regex, fallback: chapters.length - regex } };
+    const heuristic = chapters.filter((c) => c.marker_type === "heuristic").length;
+    const fallback = chapters.length - regex - heuristic;
+    const result = { ok: true as const, chapters: chapters.length, markers: { regex, fallback, heuristic } };
     if (args.format === "json" || process.stdout.isTTY === false) {
       console.log(JSON.stringify(result));
     } else {
-      console.log(`Ingested ${result.chapters} chapters (${regex} regex, ${result.markers.fallback} fallback markers).`);
+      console.log(
+        `Ingested ${result.chapters} chapters (${regex} regex, ${fallback} fallback, ${heuristic} page-structure markers).`,
+      );
     }
     return result;
   },

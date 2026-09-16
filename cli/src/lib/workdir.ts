@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export class CliError extends Error {
   constructor(
@@ -16,8 +16,10 @@ export function statePath(workdir: string, name: string): string {
 }
 
 export function writeState(workdir: string, name: string, data: unknown): void {
-  mkdirSync(workdir, { recursive: true });
-  writeFileSync(statePath(workdir, name), JSON.stringify(data, null, 2));
+  const p = statePath(workdir, name);
+  // name may carry subdirectories (e.g. "chapters/01.json") — create them, not just the workdir root.
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, JSON.stringify(data, null, 2));
 }
 
 export function readState<T>(workdir: string, name: string): T {
