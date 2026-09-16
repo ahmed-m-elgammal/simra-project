@@ -1,9 +1,12 @@
 import { Hono } from "jsr:@hono/hono";
 import { MemoryCache, type Cache } from "./lib/cache.ts";
 import { SupabaseDb, type Db } from "./lib/db.ts";
+import { registerAccountRoute } from "./routes/account.ts";
 import { registerBundleRoute } from "./routes/bundle.ts";
 import { registerCatalogRoute } from "./routes/catalog.ts";
 import { registerClaimRoute } from "./routes/claim.ts";
+import { registerDevicesRoute } from "./routes/devices.ts";
+import { registerRequestsRoute } from "./routes/requests.ts";
 import { registerWebhookRoute } from "./routes/webhook.ts";
 
 export interface Ctx {
@@ -49,6 +52,9 @@ export function app(ctx: Ctx) {
   registerClaimRoute(api);
   registerBundleRoute(api);
   registerWebhookRoute(api);
+  registerAccountRoute(api);
+  registerRequestsRoute(api);
+  registerDevicesRoute(api);
 
   api.notFound((c) => c.json({ ok: false, error: { code: "NOT_FOUND", message: "no such route" } }, 404));
   api.onError((error, c) => c.json({ ok: false, error: { code: "ABORTED", message: String(error?.message ?? error) } }, 500));
