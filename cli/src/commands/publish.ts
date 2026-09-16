@@ -24,6 +24,13 @@ export interface PublishReport {
   sha: string;
 }
 
+function bundleVersion(file: string, prefix: string): number | undefined {
+  const suffix = file.slice(prefix.length, -".json".length);
+  if (!/^\d+$/.test(suffix)) return undefined;
+  const version = Number(suffix);
+  return Number.isSafeInteger(version) ? version : undefined;
+}
+
 export async function runPublish(workdir: string, opts: PublishOpts = {}): Promise<PublishReport> {
   await runValidate(workdir, { embeddings: opts.embeddings ?? "local" });
   const config = readState<{ book_id: string; locale: string; next_version: number }>(workdir, "bookforge.config.json");
@@ -31,12 +38,18 @@ export async function runPublish(workdir: string, opts: PublishOpts = {}): Promi
   // Anchor on dist: the version to publish is the one build wrote, not next_version.
   const dist = join(workdir, "dist");
   const prefix = `bundle-${config.book_id}-${config.locale}-v`;
-  const candidates = existsSync(dist) ? readdirSync(dist).filter((f) => f.startsWith(prefix) && f.endsWith(".json")) : [];
+  const candidates = existsSync(dist)
+    ? readdirSync(dist)
+        .filter((f) => f.startsWith(prefix) && f.endsWith(".json"))
+        .map((name) => ({ name, version: bundleVersion(name, prefix) }))
+        .filter((candidate): candidate is { name: string; version: number } => candidate.version !== undefined)
+    : [];
   if (candidates.length === 0) {
     throw new CliError("VALIDATION", "no built bundle in dist/: run `build` first");
   }
-  const distName = candidates.sort().at(-1) as string;
-  const distVersion = Number(distName.slice(prefix.length, -".json".length));
+  const selected = candidates.sort((a, b) => a.version - b.version || a.name.localeCompare(b.name)).at(-1) as { name: string; version: number };
+  const distName = selected.name;
+  const distVersion = selected.version;
   const distBytes = readFileSync(join(dist, distName), "utf8");
 
   const book = assembleBook(workdir, distVersion);

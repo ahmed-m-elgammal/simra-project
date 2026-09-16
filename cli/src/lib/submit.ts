@@ -72,7 +72,12 @@ export function approvedChapters(workdir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((f) => f.endsWith(".approved.json"))
-    .sort();
+    .sort((a, b) => chapterOrder(a) - chapterOrder(b) || a.localeCompare(b));
+}
+
+function chapterOrder(file: string): number {
+  const match = /^(\d+)\.approved\.json$/.exec(file);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
 }
 
 export function accumulateLedger(

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CliError } from "./workdir.js";
-import { buildLedger, personaIdsOf, submitJson, withRules } from "./submit.js";
+import { approvedChapters, buildLedger, personaIdsOf, submitJson, withRules } from "./submit.js";
 import { seedFullWorkdir } from "../../fixtures/minibook/seed-workdir.js";
 
 describe("submit lib", () => {
@@ -28,6 +28,13 @@ describe("submit lib", () => {
     const dir = seedFullWorkdir();
     const ledger = buildLedger(dir);
     expect(ledger).toEqual({ consistency: { introduced_in: 1 } });
+  });
+  it("orders approved chapters numerically beyond two digits", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bf-"));
+    const chapters = join(dir, "chapters");
+    mkdirSync(chapters, { recursive: true });
+    for (const order of [2, 100, 11, 1]) writeFileSync(join(chapters, `${String(order).padStart(2, "0")}.approved.json`), "{}");
+    expect(approvedChapters(dir)).toEqual(["01.approved.json", "02.approved.json", "11.approved.json", "100.approved.json"]);
   });
   it("personaIdsOf returns [] without personas", () => {
     const dir = mkdtempSync(join(tmpdir(), "bf-"));

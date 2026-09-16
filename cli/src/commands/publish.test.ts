@@ -35,6 +35,21 @@ describe("publish", () => {
     expect(second.skipped).toBe("identical");
     expect(storage.uploads()).toHaveLength(3);
   });
+  it("selects the highest numeric bundle version", async () => {
+    const dir = seedFullWorkdir();
+    const configPath = join(dir, "bookforge.config.json");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    writeFileSync(configPath, JSON.stringify({ ...config, next_version: 9 }));
+    await runCommand(build, { rawArgs: ["--workdir", dir, "--embeddings", "fake"] });
+    const next = JSON.parse(readFileSync(configPath, "utf8"));
+    writeFileSync(configPath, JSON.stringify({ ...next, next_version: 10 }));
+    await runCommand(build, { rawArgs: ["--workdir", dir, "--embeddings", "fake"] });
+    const db = new FakeDb();
+    await db.setPublished("mini", { version: 9, bundle_url: "bundles/bundle-mini-en-v9.json", sha: "old" });
+    const report = await runPublish(dir, { embeddings: "fake", db, storage: new FakeStorage() });
+    expect(report.version).toBe(10);
+    expect(report.url).toContain("bundle-mini-en-v10.json");
+  });
   it("refuses when dist is stale", async () => {
     const dir = seedFullWorkdir();
     await runCommand(build, { rawArgs: ["--workdir", dir, "--embeddings", "fake"] });

@@ -23,6 +23,27 @@ function seedFullWorkdir(): string {
   return dir;
 }
 
+function seedLongWorkdir(count: number): string {
+  const dir = seedFullWorkdir();
+  const raw = Array.from({ length: count }, (_, index) => ({ id: `raw_ch_${index + 1}`, title: `Chapter ${index + 1}`, text: `Chapter ${index + 1}` }));
+  const sim = { sim_chapters: raw.map((chapter, index) => ({ order: index + 1, title: chapter.title, source_ranges: [chapter.id], rationale: "fixture", teaching_point: `Point ${index + 1}` })) };
+  writeFileSync(join(dir, "raw_chapters.json"), JSON.stringify(raw));
+  writeFileSync(join(dir, "sim_chapters.json"), JSON.stringify(sim));
+  writeFileSync(join(dir, "sim_chapters.approved.json"), JSON.stringify(sim));
+  const template = JSON.parse(readFileSync(join(dir, "chapters", "02.approved.json"), "utf8"));
+  for (let order = 3; order <= count; order += 1) {
+    const chapter = JSON.parse(JSON.stringify(template));
+    chapter.chapter_id = `mini_ch${order}`;
+    chapter.order = order;
+    for (const decision of chapter.decisions) {
+      decision.id = `mdec${order}_${decision.id}`;
+      for (const option of decision.options) option.id = `mopt${order}_${option.id}`;
+    }
+    writeFileSync(join(dir, "chapters", `${String(order).padStart(2, "0")}.approved.json`), JSON.stringify(chapter));
+  }
+  return dir;
+}
+
 describe("validate + build", () => {
   it("validates a complete approved workdir", async () => {
     const out = await runValidate(seedFullWorkdir(), { embeddings: "fake" });
@@ -54,6 +75,14 @@ describe("validate + build", () => {
       process.env = saved;
     }
   });
+  it("validates and builds a book with chapters beyond two digits", async () => {
+    const dir = seedLongWorkdir(100);
+    const validation = await runValidate(dir, { embeddings: "fake" });
+    expect(validation.chapters).toBe(100);
+    const { result } = (await runCommand(build, { rawArgs: ["--workdir", dir, "--embeddings", "fake"] })) as any;
+    expect(result.ok).toBe(true);
+    expect(existsSync(join(dir, "dist", "bundle-mini-en-v1.json"))).toBe(true);
+  }, 15000);
   it("validate fails when an approved chapter breaks", async () => {
     const dir = seedFullWorkdir();
     const bad = JSON.parse(readFileSync(join(dir, "chapters", "02.approved.json"), "utf8"));
