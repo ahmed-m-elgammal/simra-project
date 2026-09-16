@@ -415,6 +415,32 @@ Deno.test("GET /account/backup returns 412 when blob version exceeds max_version
   assertEquals((await res.json()).error.code, "INVALID");
 });
 
+Deno.test("GET /account/backup rejects a malformed max_version with 400", async () => {
+  const db = seededDb();
+  await db.upsertBackup("u_v1", { version: 1, books: [] }, 1);
+  const ctx = context({}, {}, db);
+  for (const bad of ["abc", "1.5", "-1", "1e2", "9007199254740992"]) {
+    const res = await app(ctx).request(`/account/backup?max_version=${encodeURIComponent(bad)}`, {
+      headers: { "x-app-user-id": "u_v1" },
+    });
+    assertEquals(res.status, 400, `max_version=${bad}`);
+    assertEquals((await res.json()).error.code, "INVALID");
+  }
+});
+
+Deno.test("GET /account/backup treats an empty or blank max_version as absent", async () => {
+  const db = seededDb();
+  await db.upsertBackup("u_v1", { version: 1, books: [] }, 1);
+  const ctx = context({}, {}, db);
+  for (const absent of ["", "%20"]) {
+    const res = await app(ctx).request(`/account/backup?max_version=${absent}`, {
+      headers: { "x-app-user-id": "u_v1" },
+    });
+    assertEquals(res.status, 200, `max_version=${absent}`);
+    assertEquals((await res.json()).ok, true);
+  }
+});
+
 Deno.test("POST /requests by a free user without account returns 403 LOCKED", async () => {
   const ctx = context();
   const res = await app(ctx).request("/requests", {

@@ -45,7 +45,12 @@ export function registerCatalogRoute(api: Hono<{ Variables: Variables }>): void 
         price_tier: payments && !unlocked && (access?.freeClaimCount ?? 0) < 3 ? "free_eligible" : "paid",
         unlocked_for_me: unlocked,
         bundle_version: book.bundle_version,
-        has_update: knownVersion !== undefined && knownVersion < book.bundle_version,
+        // Equality check, not strictly-less (review P3-3): publishes can be
+        // rolled back (bundle_builder.md — "rollback is a pointer swap back
+        // to vN-1"), so a client reporting a NEWER version than the server's
+        // current pointer must also see has_update to re-fetch the restored
+        // bundle.
+        has_update: knownVersion !== undefined && knownVersion !== book.bundle_version,
       };
     });
     return c.json({ ok: true, books: response }, 200);

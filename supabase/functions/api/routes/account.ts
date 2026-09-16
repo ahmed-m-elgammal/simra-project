@@ -52,10 +52,17 @@ export function registerAccountRoute(api: Hono<{ Variables: Variables }>) {
     if (!backup) {
       return c.json({ ok: false, error: { code: "NOT_FOUND", message: "No backup exists" } }, 404);
     }
-    const maxVersionParam = c.req.query("max_version");
-    if (maxVersionParam !== undefined) {
+    const maxVersionParam = c.req.query("max_version")?.trim();
+    if (maxVersionParam !== undefined && maxVersionParam !== "") {
+      // Strict parse (review P3-2): Number("abc") used to yield NaN and skip
+      // the guard entirely (malformed treated as absent), while an empty
+      // string coerced to 0 and produced spurious 412s. Malformed input is a
+      // client bug → 400, checked before the version comparison → 412.
       const maxVersion = Number(maxVersionParam);
-      if (!Number.isNaN(maxVersion) && backup.blobVersion > maxVersion) {
+      if (!/^\d+$/.test(maxVersionParam) || !Number.isSafeInteger(maxVersion)) {
+        return c.json({ ok: false, error: { code: "INVALID", message: "max_version must be a non-negative integer" } }, 400);
+      }
+      if (backup.blobVersion > maxVersion) {
         return c.json({ ok: false, error: { code: "INVALID", message: "Backup version exceeds supported version" } }, 412);
       }
     }

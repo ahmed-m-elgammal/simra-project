@@ -30,6 +30,10 @@ export class SupabaseDb implements Db {
     this.client = new SupabaseClient(env, options.fetcher ?? fetch);
   }
 
+  // Lenient by design (review P3-1): a malformed flags row (non-string key,
+  // missing value) is skipped instead of thrown, so one bad row can never
+  // take the payments gate down. The database remains the source of truth
+  // for the surviving valid rows.
   async getFlags(): Promise<Record<string, unknown>> {
     const rows = await this.client.getJson("/rest/v1/flags?select=key,value", "flags query");
     if (!Array.isArray(rows)) throw new Error("flags query returned an invalid response");

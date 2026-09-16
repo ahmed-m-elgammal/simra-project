@@ -147,9 +147,9 @@ Deno.test("memory cache rejects an invalid maxEntries option", () => {
 });
 
 const knownVersionCases = [
-  { value: "habits:0", expected: true },
-  { value: "habits:1", expected: false },
-  { value: "habits:2", expected: false },
+  { value: "habits:0", expected: true }, // older than server → update available
+  { value: "habits:1", expected: false }, // equal to server → in sync
+  { value: "habits:2", expected: true }, // newer than server → publish was rolled back
   { value: "unknown:0", expected: false },
 ];
 for (const testCase of knownVersionCases) {
@@ -167,6 +167,14 @@ for (const value of invalidKnownCases) {
     assertEquals((await res.json()).error.code, "INVALID");
   });
 }
+
+Deno.test("catalog flags a rolled-back publish as an update", async () => {
+  // bundle_builder.md: "rollback = pointer swap back to vN-1" — a client still
+  // holding the pulled version must be told to re-fetch, so a KNOWN version
+  // newer than the server pointer is an update too (review P3-3).
+  const res = await app(context()).request("/catalog?known=habits:2", { headers: { "x-app-user-id": "u_fresh" } });
+  assertEquals((await res.json()).books[0].has_update, true);
+});
 
 Deno.test("catalog uses the last value for a repeated known book version", async () => {
   const res = await app(context()).request("/catalog?known=habits:0,habits:1", { headers: { "x-app-user-id": "u_fresh" } });
