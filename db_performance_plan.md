@@ -21,7 +21,7 @@ Single Postgres (Supabase or equivalent) with PgBouncer, service_role on hot pat
 
 Tables:
 ```
-books(id PK, title, author, status: draft|published, bundle_version INT, bundle_url, updated_at)
+books(id PK, title, author, description, status: draft|published, bundle_version INT, bundle_url, updated_at)
 book_configs(book_id PK, state_variables JSONB, bands JSONB, bands_compiled JSONB)
 personas(id PK, book_id, status, starting_state JSONB, gating_rules JSONB)
 chapters(id PK, book_id, status, "order", title, content_ref)

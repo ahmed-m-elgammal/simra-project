@@ -1,5 +1,5 @@
-insert into books (id, title, author, status, bundle_version, bundle_url, bundle_sha) values
-  ('habits', 'The Habit Loop', 'Minibook', 'published', 1, 'bundles/bundle-habits-en-v1.json', 'minisha');
+insert into books (id, title, author, description, status, bundle_version, bundle_url, bundle_sha) values
+  ('habits', 'The Habit Loop', 'Minibook', 'A short simulation about building habits.', 'published', 1, 'bundles/bundle-habits-en-v1.json', 'minisha');
 
 insert into book_configs (book_id, state_variables, bands, bands_compiled) values
   ('habits',

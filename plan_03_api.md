@@ -171,7 +171,7 @@ alter table accounts enable row level security;
 
 `personas.starting_state` keys must match that book's config vars (enforced at publish by the builder, not by CHECK — JSONB key rules stay in code where the ledger lives).
 
-- [ ] **Step 2: Write seeds.** `minibook.sql`: book `habits` published v1 + config vars (consistency/energy) + 2 personas + 1 chapter + 1 decision + 2 options (mirror Plan 01's habits fixture so CLI and API fixtures agree). `dev-users.sql`: user `u_free` with 3 free_claims (books a,b,c), user `u_ent` with entitlement on `habits`, user `u_fresh` with nothing.
+- [ ] **Step 2: Write seeds.** `minibook.sql`: the checked-in multi-chapter fixture has book `habits` published v1 + config vars (consistency/energy) + 2 personas + 2 chapters + 2 decisions + 4 options, mirroring the CLI's multi-chapter path. Its size is only test data; production books are iterated from their published chapter rows with no fixed chapter count. `dev-users.sql`: user `u_free` with 3 free_claims (books a,b,c), user `u_ent` with entitlement on `habits`, user `u_fresh` with no access rows, plus `u_caught` and `u_mid` progress fixtures for push-cohort tests.
 
 - [ ] **Step 3: Apply + verify + rollback on local stack**
 
@@ -196,7 +196,7 @@ git commit -m "feat(api): core schema + RLS deny-by-default + seeds"
 - Create: `supabase/functions/api/index.ts`, `supabase/functions/api/lib/db.ts`, `supabase/functions/api/lib/cache.ts`, `supabase/functions/api/lib/flags.ts`
 - Test: `supabase/functions/api/api.test.ts` (grows each task; starts with 404 + error envelope + flag tests)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { assertEquals } from "jsr:@std/assert";
@@ -207,7 +207,7 @@ import { MemoryCache } from "./lib/cache.ts";
 const ctx = { db: new FakeDb(), cache: new MemoryCache(), env: { PAYMENTS_ENABLED: "false" } };
 
 Deno.test("unknown route → NOT_FOUND envelope", async () => {
-  const res = await app(ctx).request("/nope");
+  const res = await app(ctx).request("/nope", { headers: { "x-app-user-id": "u_test" } });
   assertEquals(res.status, 404);
   const body = await res.json();
   assertEquals(body.ok, false);
@@ -224,12 +224,12 @@ Deno.test("missing app_user_id → INVALID", async () => {
 
 Router factory takes injected context (real adapters in prod, fakes in tests — no network in unit tests, ever).
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `deno test --allow-net supabase/functions/api/api.test.ts`
 Expected: FAIL, module missing.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 ```ts
 // index.ts
@@ -262,12 +262,14 @@ export default { fetch: (req: Request) => app(prodCtx()).fetch(req) };
 
 `flags.ts`: `paymentsEnabled(ctx)` = flags table value if present else `env.PAYMENTS_ENABLED === "true"`; env default false (Phase 0). `cache.ts`: `Cache { get(k): Promise<string|null>; set(k,v,ttlSec): Promise<void> }` + `MemoryCache` (Map with expiry). `db.ts`: `Db` interface grows per task (start with `getFlags(): Promise<Record<string,unknown>>`); `FakeDb` in-memory; Supabase impl reads `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` from env only.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `deno test --allow-net supabase/functions/api/api.test.ts`
-Expected: PASS, 2 tests.
+Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Commit**
+The checked-in `deno.lock` pins the resolved JSR dependencies. The Node workspace typecheck excludes the Deno Edge tree; Deno is the authoritative typecheck/runtime check for these files.
+
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/functions/api/index.ts supabase/functions/api/lib/ supabase/functions/api/api.test.ts
@@ -279,6 +281,7 @@ git commit -m "feat(api): hono router + envelope + flags + cache seam"
 ### Task 3: catalog + claim-free
 
 **Files:**
+- Create: `supabase/migrations/002_api_catalog_claims.sql` (catalog description + atomic claim transaction)
 - Create: `supabase/functions/api/routes/catalog.ts`, `supabase/functions/api/routes/claim.ts`
 - Test: extend `api.test.ts`
 
@@ -286,18 +289,22 @@ git commit -m "feat(api): hono router + envelope + flags + cache seam"
 
 `POST /books/:id/claim-free` JSON `{ }` (uid from header): count + insert in one `db.claimFree(uid, bookId)` transaction; returns `{ ok:true, claimed:true, remaining }`; exhausted → 409 `LIMIT_REACHED` with `remaining: 0`; re-claim of owned → 200 same. When flag false: log the claim row anyway (demand data) and return `{ ok:true, claimed:true, remaining: 3, monitor_only: true }` — never 409 in Phase 0.
 
-- [ ] **Step 1: Write failing tests** (fresh user catalog → all unlocked under flag false; flag true + `u_free` (3 claims) claiming 4th → 409 LIMIT_REACHED; re-claim idempotent 200).
+Migration 002 adds the catalog `books.description` field and a `security definer` `claim_free` RPC. The RPC takes a per-user advisory transaction lock before checking the three-claim limit and inserting, so concurrent requests cannot oversubscribe the allowance.
 
-- [ ] **Step 2: Run to verify they fail.**
+- [x] **Step 1: Write failing tests** (fresh user catalog → all unlocked under flag false; flag true + `u_free` (3 claims) claiming 4th → 409 LIMIT_REACHED; re-claim idempotent 200).
 
-- [ ] **Step 3: Write both routes + `Db` methods** (`listBooks`, `checkAccess`, `claimFree`) with FakeDb implementations (seed-aware: preload minibook + dev users).
+- [x] **Step 2: Run to verify they fail.**
 
-- [ ] **Step 4: Run to verify they pass.**
+- [x] **Step 3: Write both routes + `Db` methods** (`listBooks`, `checkAccess`, `claimFree`) with FakeDb implementations. Test fixtures inject the minibook and dev users explicitly; the adapter has no built-in book or user data.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run to verify they pass.**
+
+Run: `deno test --allow-net supabase/functions/api/api.test.ts` — 13 tests pass. `pnpm verify:sql` applies the relational migration pieces and checks the advisory-lock guard text; the PL/pgSQL body requires the real Supabase/Postgres migration path.
+
+- [x] **Step 5: Commit**
 
 ```bash
-git add supabase/functions/api/routes/catalog.ts supabase/functions/api/routes/claim.ts supabase/functions/api/lib/db.ts supabase/functions/api/api.test.ts
+git add supabase/migrations/002_api_catalog_claims.sql supabase/seed/minibook.sql scripts/verify-sql.mjs supabase/functions/api/routes/catalog.ts supabase/functions/api/routes/claim.ts supabase/functions/api/lib/db.ts supabase/functions/api/api.test.ts
 git commit -m "feat(api): catalog + claim-free with Phase-0 monitor mode"
 ```
 
@@ -311,18 +318,20 @@ git commit -m "feat(api): catalog + claim-free with Phase-0 monitor mode"
 
 `GET /books/:id/bundle`: `db.getBook(id)` → 404 `NOT_FOUND` if missing/draft. Access via `db.checkAccess` (+ Redis/memory `ent:{uid}:{bid}` 60s). Denied → 403 `LOCKED`. Allowed → `302` to `bundle_url` with `ETag: "v{version}"`. `If-None-Match` matching current version → `304` empty. No body bytes ever leave this function. Gate p99 budget: cache hit + PK lookups (<30ms target, asserted in e2e timing log, not unit test).
 
-- [ ] **Step 1: Write failing tests** (`u_fresh` + flag true → 403 LOCKED; `u_ent` → 302 with ETag `v1` and Location ending `bundle-habits-v1.json`; matching If-None-Match → 304).
+- [x] **Step 1: Write failing tests** (`u_fresh` + flag true → 403 LOCKED; `u_ent` → 302 with ETag `v1` and Location ending `bundle-habits-en-v1.json`; matching If-None-Match → 304).
 
-- [ ] **Step 2: Run to verify they fail.**
+- [x] **Step 2: Run to verify they fail.**
 
-- [ ] **Step 3: Write the route.**
+- [x] **Step 3: Write the route.**
 
-- [ ] **Step 4: Run to verify they pass.**
+- [x] **Step 4: Run to verify they pass.**
 
-- [ ] **Step 5: Commit**
+Run: `deno test --allow-net supabase/functions/api` — 112 tests pass (18 core route tests + 94 additional real-world cases). Redirect and `304` responses are constructed with null bodies; bundle bytes remain on the CDN. The additional matrix covers identity precedence, malformed inputs, cache isolation/expiry, multi-book catalogs, claim-limit edges, access-cache separation, ETag validators, and Supabase adapter failures. Test-only book/user data is injected through `test-fixtures.ts`; production adapters have no built-in application content.
+
+- [x] **Step 5: Commit**
 
 ```bash
-git add supabase/functions/api/routes/bundle.ts supabase/functions/api/api.test.ts
+git add supabase/functions/api/routes/bundle.ts supabase/functions/api/index.ts supabase/functions/api/lib/db.ts supabase/functions/api/api.test.ts supabase/functions/api/api.additional.test.ts supabase/functions/api/test-fixtures.ts
 git commit -m "feat(api): bundle gate + CDN redirect + ETag"
 ```
 

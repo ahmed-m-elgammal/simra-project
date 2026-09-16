@@ -8,5 +8,6 @@
     "verbatimModuleSyntax": true,
     "outDir": "dist",
     "rootDir": "."
-  }
+  },
+  "exclude": ["supabase/functions/**/*.ts"]
 }

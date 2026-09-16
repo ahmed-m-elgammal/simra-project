@@ -38,4 +38,4 @@ Hard boundary: authoring side (`builder/`, `cli/`, workdirs) never enters the mo
 
 ## Status
 
-Planning complete, building now: Plan 01 Task 1 committed. Single rule for everyone: specs stay true or the change doesn't land.
+Plans 01 and 02 are complete. Plan 03 Tasks 1–4 (schema/RLS/seeds, Edge API scaffold, catalog, claim-free flow, and CDN bundle gate) are implemented; Task 5 is next. Single rule for everyone: specs stay true or the change doesn't land.

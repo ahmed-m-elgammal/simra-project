@@ -4,6 +4,8 @@ insert into free_claims (app_user_id, book_id) values
 insert into entitlements (app_user_id, book_id) values
   ('u_ent', 'habits');
 
+-- u_fresh intentionally has no claims or entitlements.
+
 insert into progress (app_user_id, book_id, furthest_chapter) values
   ('u_caught', 'habits', 2),
   ('u_mid', 'habits', 1);

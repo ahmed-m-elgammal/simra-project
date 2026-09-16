@@ -18,7 +18,7 @@ Scope: this is the client-facing API only. Authoring/review has its own separate
 
 ## 3. Core Endpoints
 
-Error envelope for all endpoints: `{ error: { code, message } }` with HTTP status. Codes: `LIMIT_REACHED, LOCKED, NOT_FOUND, INVALID, RATE_LIMITED, CONFLICT`.
+Error envelope for all error responses: `{ ok: false, error: { code, message } }` with HTTP status. Codes: `LIMIT_REACHED, LOCKED, NOT_FOUND, INVALID, RATE_LIMITED, CONFLICT, ABORTED`. Successful JSON responses use `{ ok: true, ...data }`; redirects and `304` responses have no JSON envelope.
 
 ### `GET /catalog`
 Returns book list. Response per book: `{ id, title, description, price_tier: free_eligible|paid, unlocked_for_me: bool, bundle_version, has_update: bool }`. `unlocked_for_me` = free-claimed OR entitled. Computed from `free_claims` + `entitlements` PK lookups + 60s Redis cache. Response cached 60s server-side. No auth beyond `app_user_id`.
@@ -27,7 +27,7 @@ Returns book list. Response per book: `{ id, title, description, price_tier: fre
 Body: `{ app_user_id }`. Idempotent via `free_claims(app_user_id, book_id)` PK (`ON CONFLICT DO NOTHING` returns already-claimed as success). Enforces max 3 free per `app_user_id` in one transaction (count + insert). Success `200 { claimed: true, remaining }`. Exhausted `409 { error: LIMIT_REACHED, remaining: 0 }`. Rate limit: 10/min per user. Free claims are our logic, not RevenueCat purchases. Reinstall resets anonymous id and its 3 claims — accepted for MVP, not solved here.
 
 ### `GET /books/{id}/bundle?app_user_id=...`
-Gate: `200` only if free-claimed OR entitled, else `403 { error: LOCKED }`. On pass: `302` to immutable CDN URL `bundle-{id}-vN.json` with `ETag: vN`. Client re-fetch sends `If-None-Match`; server/CDN returns `304` when current. No body larger than the redirect comes from the API itself. `has_update` in catalog derives from comparing device-known version vs `books.bundle_version`.
+Gate: `302` only if free-claimed OR entitled, else `403 { error: LOCKED }`. On pass: `302` to immutable CDN URL `bundle-{id}-vN.json` with `ETag: vN`. Client re-fetch sends `If-None-Match`; server/CDN returns `304` when current. No body larger than the redirect comes from the API itself. `has_update` in catalog derives from comparing device-known version vs `books.bundle_version`.
 
 ### `POST /webhooks/revenuecat`
 Verifies signature on every call (missing/invalid → `401`, no state change). Idempotent on RevenueCat `event_id` (`revenue_events` PK, `ON CONFLICT DO NOTHING`). Handles purchase/renewal/cancellation/refund via upsert/delete on `entitlements(app_user_id, book_id)`. Returns `200 { ok: true }` fast; never blocks bundle delivery on RevenueCat live API. Retries safe by idempotency.
