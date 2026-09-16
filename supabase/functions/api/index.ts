@@ -4,6 +4,7 @@ import { SupabaseDb, type Db } from "./lib/db.ts";
 import { registerBundleRoute } from "./routes/bundle.ts";
 import { registerCatalogRoute } from "./routes/catalog.ts";
 import { registerClaimRoute } from "./routes/claim.ts";
+import { registerWebhookRoute } from "./routes/webhook.ts";
 
 export interface Ctx {
   db: Db;
@@ -22,7 +23,10 @@ function productionContext(): Ctx {
   return {
     db: new SupabaseDb(),
     cache: productionCache,
-    env: { PAYMENTS_ENABLED: Deno.env.get("PAYMENTS_ENABLED") ?? "false" },
+    env: {
+      PAYMENTS_ENABLED: Deno.env.get("PAYMENTS_ENABLED") ?? "false",
+      REVENUECAT_WEBHOOK_SECRET: Deno.env.get("REVENUECAT_WEBHOOK_SECRET") ?? "",
+    },
   };
 }
 
@@ -44,6 +48,7 @@ export function app(ctx: Ctx) {
   registerCatalogRoute(api);
   registerClaimRoute(api);
   registerBundleRoute(api);
+  registerWebhookRoute(api);
 
   api.notFound((c) => c.json({ ok: false, error: { code: "NOT_FOUND", message: "no such route" } }, 404));
   api.onError((error, c) => c.json({ ok: false, error: { code: "ABORTED", message: String(error?.message ?? error) } }, 500));

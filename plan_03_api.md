@@ -347,18 +347,20 @@ git commit -m "feat(api): bundle gate + CDN redirect + ETag"
 
 Migration note: add in Task 7's migration 002 (comment field) or treat `book_id='*'` by convention — locked: convention `book_id = '*'` = all-books, documented in code + API plan. No schema change needed.
 
-- [ ] **Step 1: Write failing tests** (bad secret → 401 + zero writes; good purchase → 200 + entitlement present; replay same event_id → 200 + single entitlement row (no dup); cancellation → entitlement gone).
+- [x] **Step 1: Write failing tests** (bad secret → 401 + zero writes; good purchase → 200 + entitlement present; replay same event_id → 200 + single entitlement row (no dup); cancellation → entitlement gone).
 
-- [ ] **Step 2: Run to verify they fail.**
+- [x] **Step 2: Run to verify they fail.**
 
-- [ ] **Step 3: Write the route.**
+- [x] **Step 3: Write the route.**
 
-- [ ] **Step 4: Run to verify they pass.**
+- [x] **Step 4: Run to verify they pass.**
 
-- [ ] **Step 5: Commit**
+Run: `deno test --allow-net supabase/functions/api` — 129 tests pass (22 core route tests + 107 additional cases). All files strictly under 200 lines. Bad secrets return 401 with zero writes; purchases upsert entitlement; `all_books` maps to `*`; duplicate events return 200 without duplicate writes; cancellation/refunds remove entitlements; PostgREST ignore-duplicates headers verified.
+
+- [x] **Step 5: Commit**
 
 ```bash
-git add supabase/functions/api/routes/webhook.ts supabase/functions/api/api.test.ts
+git add supabase/functions/api/routes/webhook.ts supabase/functions/api/api.test.ts supabase/functions/api/api.additional.test.ts supabase/functions/api/index.ts supabase/functions/api/lib/ supabase/functions/api/test-fixtures.ts deno.lock plan_03_api.md
 git commit -m "feat(api): revenuecat webhook verify + idempotent entitlements"
 ```
 

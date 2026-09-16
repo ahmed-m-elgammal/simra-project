@@ -165,3 +165,107 @@ Deno.test("bundle gate caches the per-user access decision for 60 seconds", asyn
   await app(ctx).request("/books/habits/bundle", { headers: { "x-app-user-id": "u_ent" } });
   assertEquals(db.checkAccessCalls, 1);
 });
+
+Deno.test("webhook rejects bad or missing secret with 401 and zero writes", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer wrong_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      event_id: "evt_bad",
+      app_user_id: "u_fresh",
+      book_id: "habits",
+      type: "purchase",
+    }),
+  });
+  assertEquals(res.status, 401);
+  const body = await res.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.error.code, "INVALID");
+  const access = await db.checkAccess("u_fresh", ["habits"]);
+  assertEquals(access.entitledBookIds, []);
+});
+
+Deno.test("webhook purchase grants entitlement and returns 200", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      event_id: "evt_purchase_1",
+      app_user_id: "u_fresh",
+      book_id: "habits",
+      type: "purchase",
+    }),
+  });
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { ok: true });
+  const access = await db.checkAccess("u_fresh", ["habits"]);
+  assertEquals(access.entitledBookIds, ["habits"]);
+});
+
+Deno.test("webhook replays same event_id idempotently without duplicate writes", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const payload = {
+    event_id: "evt_idempotent_1",
+    app_user_id: "u_fresh",
+    book_id: "habits",
+    type: "purchase",
+  };
+  const headers = {
+    authorization: "Bearer test_rc_secret",
+    "content-type": "application/json",
+  };
+  const first = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  assertEquals(first.status, 200);
+  assertEquals(await first.json(), { ok: true });
+
+  const second = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+  assertEquals(second.status, 200);
+  assertEquals(await second.json(), { ok: true });
+  const access = await db.checkAccess("u_fresh", ["habits"]);
+  assertEquals(access.entitledBookIds, ["habits"]);
+});
+
+Deno.test("webhook cancellation removes entitlement and returns 200", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const initialAccess = await db.checkAccess("u_ent", ["habits"]);
+  assertEquals(initialAccess.entitledBookIds, ["habits"]);
+
+  const res = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      event_id: "evt_cancel_1",
+      app_user_id: "u_ent",
+      book_id: "habits",
+      type: "cancellation",
+    }),
+  });
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { ok: true });
+  const finalAccess = await db.checkAccess("u_ent", ["habits"]);
+  assertEquals(finalAccess.entitledBookIds, []);
+});
+

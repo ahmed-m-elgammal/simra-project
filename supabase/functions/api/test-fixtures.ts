@@ -29,5 +29,6 @@ export function seededDb(flags: Record<string, unknown> = {}): FakeDb {
 }
 
 export function context(flags: Record<string, unknown> = {}, env: Record<string, string> = {}, db = seededDb(flags)): Ctx {
-  return { db, cache: new MemoryCache(), env };
+  return { db, cache: new MemoryCache(), env: { REVENUECAT_WEBHOOK_SECRET: "test_rc_secret", ...env } };
 }
+

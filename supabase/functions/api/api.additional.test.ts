@@ -533,3 +533,227 @@ Deno.test("SupabaseDb surfaces claim RPC HTTP failures", async () => {
   const { db } = adapter([new Response("failure", { status: 409 })]);
   await assertFailure(() => db.claimFree("u", "book"), "status 409");
 });
+
+Deno.test("webhook handles all_books entitlement expanding to wildcard *", async () => {
+  const db = seededDb({ payments_enabled: true });
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      event_id: "evt_all_books_1",
+      app_user_id: "u_fresh",
+      entitlement: "all_books",
+      type: "purchase",
+    }),
+  });
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { ok: true });
+  assertEquals(db.hasEntitlement("u_fresh", "*"), true);
+  const access = await db.checkAccess("u_fresh", ["habits"]);
+  assertEquals(access.entitledBookIds, ["habits"]);
+});
+
+Deno.test("webhook handles nested RevenueCat payload format", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      event: {
+        id: "evt_nested_1",
+        app_user_id: "u_nested",
+        entitlement_ids: ["all_books"],
+        type: "INITIAL_PURCHASE",
+      },
+    }),
+  });
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { ok: true });
+  assertEquals(db.hasEntitlement("u_nested", "*"), true);
+});
+
+Deno.test("webhook handles expiration/refund removing entitlement", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  await db.upsertEntitlement("u_exp", "*");
+  assertEquals(db.hasEntitlement("u_exp", "*"), true);
+
+  const res = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      event_id: "evt_exp_1",
+      app_user_id: "u_exp",
+      book_id: "*",
+      type: "EXPIRATION",
+    }),
+  });
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { ok: true });
+  assertEquals(db.hasEntitlement("u_exp", "*"), false);
+});
+
+Deno.test("webhook informational event does not modify entitlements", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      event_id: "evt_test_info",
+      app_user_id: "u_fresh",
+      type: "TEST",
+    }),
+  });
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { ok: true });
+  assertEquals(db.hasRevenueEvent("evt_test_info"), true);
+  assertEquals(db.hasEntitlement("u_fresh", "habits"), false);
+});
+
+Deno.test("webhook rejects malformed JSON with 400 INVALID", async () => {
+  const res = await app(context()).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: "{not-valid-json",
+  });
+  assertEquals(res.status, 400);
+  const body = await res.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.error.code, "INVALID");
+});
+
+Deno.test("webhook rejects missing required event fields with 400 INVALID", async () => {
+  const res = await app(context()).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ event_id: "e1" }),
+  });
+  assertEquals(res.status, 400);
+  const body = await res.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.error.code, "INVALID");
+});
+
+Deno.test("webhook rejects grant event missing book_id and entitlement with 400 INVALID", async () => {
+  const res = await app(context()).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ event_id: "e1", app_user_id: "u1", type: "purchase" }),
+  });
+  assertEquals(res.status, 400);
+  const body = await res.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.error.code, "INVALID");
+});
+
+Deno.test("webhook rejects authorization header without Bearer prefix with 401", async () => {
+  const res = await app(context()).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "test_rc_secret",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ event_id: "e1", app_user_id: "u1", book_id: "habits", type: "purchase" }),
+  });
+  assertEquals(res.status, 401);
+  const body = await res.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.error.code, "INVALID");
+});
+
+Deno.test("webhook timingSafeEqual safely handles different length secrets", async () => {
+  const shortRes = await app(context()).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer x",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ event_id: "e1", app_user_id: "u1", book_id: "habits", type: "purchase" }),
+  });
+  assertEquals(shortRes.status, 401);
+
+  const longRes = await app(context()).request("/webhooks/revenuecat", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer very_long_secret_that_exceeds_length_of_configured_secret_by_far",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ event_id: "e1", app_user_id: "u1", book_id: "habits", type: "purchase" }),
+  });
+  assertEquals(longRes.status, 401);
+});
+
+Deno.test("SupabaseDb records revenue event and sets ignore-duplicates", async () => {
+  const { db, calls } = adapter([jsonResponse([{ event_id: "evt_1" }])]);
+  const result = await db.recordRevenueEvent({
+    eventId: "evt_1",
+    appUserId: "u1",
+    bookId: "*",
+    type: "purchase",
+  });
+  assertEquals(result, { inserted: true });
+  assertEquals(calls[0].init?.method, "POST");
+  assertEquals(
+    (calls[0].init?.headers as Record<string, string>)?.Prefer,
+    "resolution=ignore-duplicates,return=representation",
+  );
+  const parsedBody = JSON.parse(String(calls[0].init?.body));
+  assertEquals(parsedBody.event_id, "evt_1");
+  assertEquals(parsedBody.book_id, "*");
+});
+
+Deno.test("SupabaseDb detects duplicate revenue event", async () => {
+  const { db } = adapter([jsonResponse([])]);
+  const result = await db.recordRevenueEvent({
+    eventId: "evt_dup",
+    appUserId: "u1",
+    bookId: "*",
+    type: "purchase",
+  });
+  assertEquals(result, { inserted: false });
+});
+
+Deno.test("SupabaseDb upserts entitlement with merge-duplicates", async () => {
+  const { db, calls } = adapter([new Response(null, { status: 204 })]);
+  await db.upsertEntitlement("u1", "habits");
+  assertEquals(calls[0].init?.method, "POST");
+  assertEquals(
+    (calls[0].init?.headers as Record<string, string>)?.Prefer,
+    "resolution=merge-duplicates,return=minimal",
+  );
+  const parsedBody = JSON.parse(String(calls[0].init?.body));
+  assertEquals(parsedBody.app_user_id, "u1");
+  assertEquals(parsedBody.book_id, "habits");
+});
+
+Deno.test("SupabaseDb deletes entitlement", async () => {
+  const { db, calls } = adapter([new Response(null, { status: 204 })]);
+  await db.deleteEntitlement("u1", "*");
+  assertEquals(calls[0].init?.method, "DELETE");
+  assertEquals(calls[0].url.includes("book_id=eq.%2A"), true);
+});
+
