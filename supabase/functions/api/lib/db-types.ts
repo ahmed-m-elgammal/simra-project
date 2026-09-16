@@ -27,11 +27,26 @@ export interface RevenueEventRecord {
   type: string;
 }
 
+export interface AccountRecord {
+  appUserId: string;
+  email: string | null;
+}
+
+export interface BackupRecord {
+  appUserId: string;
+  blob: unknown;
+  blobVersion: number;
+}
+
 export interface FakeDbOptions {
   books?: readonly BookRecord[];
   claims?: readonly { appUserId: string; bookId: string }[];
   entitlements?: readonly { appUserId: string; bookId: string }[];
   revenueEvents?: readonly RevenueEventRecord[];
+  accounts?: readonly AccountRecord[];
+  backups?: readonly BackupRecord[];
+  requests?: readonly { appUserId: string; title: string; createdAt: Date }[];
+  devices?: readonly { token: string; appUserId: string; platform: string; locale: string }[];
 }
 
 export interface Db {
@@ -43,4 +58,23 @@ export interface Db {
   recordRevenueEvent(event: RevenueEventRecord): Promise<{ inserted: boolean }>;
   upsertEntitlement(appUserId: string, bookId: string, source?: string): Promise<void>;
   deleteEntitlement(appUserId: string, bookId: string): Promise<void>;
+
+  // Account
+  getAccount(appUserId: string): Promise<AccountRecord | null>;
+  findAccountByEmail(email: string): Promise<AccountRecord | null>;
+  upsertAccount(appUserId: string, email?: string): Promise<void>;
+  getPreservedCounts(appUserId: string): Promise<{ claims: number; entitlements: number }>;
+
+  // Backup
+  getBackup(appUserId: string): Promise<BackupRecord | null>;
+  upsertBackup(appUserId: string, blob: unknown, blobVersion: number): Promise<void>;
+
+  // Requests
+  isPremium(appUserId: string): Promise<boolean>;
+  countRecentRequests(appUserId: string, windowSeconds: number): Promise<number>;
+  createRequest(appUserId: string, title: string): Promise<void>;
+
+  // Devices
+  registerDevice(appUserId: string, platform: string, token: string, locale?: string): Promise<void>;
+  unregisterDevice(token: string): Promise<void>;
 }

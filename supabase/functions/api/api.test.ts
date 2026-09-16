@@ -269,3 +269,150 @@ Deno.test("webhook cancellation removes entitlement and returns 200", async () =
   assertEquals(finalAccess.entitledBookIds, []);
 });
 
+// --- Task 6: account + backup + requests + devices ---
+
+Deno.test("POST /account upserts and returns preserved counts", async () => {
+  const db = seededDb({ payments_enabled: true });
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/account", {
+    method: "POST",
+    headers: { "x-app-user-id": "u_ent", "content-type": "application/json" },
+    body: JSON.stringify({ email: "u@test.com" }),
+  });
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body.ok, true);
+  assertEquals(typeof body.preserved.claims, "number");
+  assertEquals(typeof body.preserved.entitlements, "number");
+});
+
+Deno.test("POST /account returns 409 CONFLICT when email belongs to another user", async () => {
+  const db = seededDb();
+  await db.upsertAccount("u_other", "taken@test.com");
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/account", {
+    method: "POST",
+    headers: { "x-app-user-id": "u_fresh", "content-type": "application/json" },
+    body: JSON.stringify({ email: "taken@test.com" }),
+  });
+  assertEquals(res.status, 409);
+  const body = await res.json();
+  assertEquals(body.ok, false);
+  assertEquals(body.error.code, "CONFLICT");
+});
+
+Deno.test("backup roundtrip preserves blob and reports versions", async () => {
+  const db = seededDb();
+  await db.upsertAccount("u_bak");
+  const ctx = context({}, {}, db);
+  const blob = { version: 1, books: [{ book_id: "habits", bundle_version: 1, state: { x: 1 }, chapter_pointer: 0, furthest_chapter: 0, path_log_per_chapter: {} }] };
+  const postRes = await app(ctx).request("/account/backup", {
+    method: "POST",
+    headers: { "x-app-user-id": "u_bak", "content-type": "application/json" },
+    body: JSON.stringify(blob),
+  });
+  assertEquals(postRes.status, 200);
+  assertEquals((await postRes.json()).ok, true);
+
+  const getRes = await app(ctx).request("/account/backup", {
+    headers: { "x-app-user-id": "u_bak" },
+  });
+  assertEquals(getRes.status, 200);
+  const getBody = await getRes.json();
+  assertEquals(getBody.ok, true);
+  assertEquals(getBody.blob.version, 1);
+  assertEquals(getBody.versions.habits, 1);
+});
+
+Deno.test("oversize backup blob returns 400 INVALID", async () => {
+  const db = seededDb();
+  await db.upsertAccount("u_big");
+  const ctx = context({}, {}, db);
+  const huge = { version: 1, books: [{ book_id: "x", bundle_version: 1, state: { data: "x".repeat(1_100_000) }, chapter_pointer: 0, furthest_chapter: 0, path_log_per_chapter: {} }] };
+  const res = await app(ctx).request("/account/backup", {
+    method: "POST",
+    headers: { "x-app-user-id": "u_big", "content-type": "application/json" },
+    body: JSON.stringify(huge),
+  });
+  assertEquals(res.status, 400);
+  assertEquals((await res.json()).error.code, "INVALID");
+});
+
+Deno.test("GET /account/backup returns 404 when none exists", async () => {
+  const ctx = context();
+  const res = await app(ctx).request("/account/backup", {
+    headers: { "x-app-user-id": "u_nobody" },
+  });
+  assertEquals(res.status, 404);
+  assertEquals((await res.json()).error.code, "NOT_FOUND");
+});
+
+Deno.test("GET /account/backup returns 412 when blob version exceeds max_version", async () => {
+  const db = seededDb();
+  await db.upsertBackup("u_v2", { version: 2, books: [] }, 2);
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/account/backup?max_version=1", {
+    headers: { "x-app-user-id": "u_v2" },
+  });
+  assertEquals(res.status, 412);
+  assertEquals((await res.json()).error.code, "INVALID");
+});
+
+Deno.test("POST /requests by a free user without account returns 403 LOCKED", async () => {
+  const ctx = context();
+  const res = await app(ctx).request("/requests", {
+    method: "POST",
+    headers: { "x-app-user-id": "u_fresh", "content-type": "application/json" },
+    body: JSON.stringify({ requested_title: "My Book" }),
+  });
+  assertEquals(res.status, 403);
+  assertEquals((await res.json()).error.code, "LOCKED");
+});
+
+Deno.test("POST /requests succeeds for a premium user", async () => {
+  const db = seededDb();
+  await db.upsertEntitlement("u_prem", "*");
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/requests", {
+    method: "POST",
+    headers: { "x-app-user-id": "u_prem", "content-type": "application/json" },
+    body: JSON.stringify({ requested_title: "Cool Book" }),
+  });
+  assertEquals(res.status, 200);
+  assertEquals((await res.json()).ok, true);
+});
+
+Deno.test("second request in 7 days returns 429 RATE_LIMITED", async () => {
+  const db = seededDb();
+  await db.upsertEntitlement("u_rate", "*");
+  await db.createRequest("u_rate", "First");
+  const ctx = context({}, {}, db);
+  const res = await app(ctx).request("/requests", {
+    method: "POST",
+    headers: { "x-app-user-id": "u_rate", "content-type": "application/json" },
+    body: JSON.stringify({ requested_title: "Second" }),
+  });
+  assertEquals(res.status, 429);
+  assertEquals((await res.json()).error.code, "RATE_LIMITED");
+});
+
+Deno.test("device register and unregister return 200", async () => {
+  const db = seededDb();
+  const ctx = context({}, {}, db);
+  const regRes = await app(ctx).request("/devices/register", {
+    method: "POST",
+    headers: { "x-app-user-id": "u_dev", "content-type": "application/json" },
+    body: JSON.stringify({ platform: "ios", token: "tok_abc" }),
+  });
+  assertEquals(regRes.status, 200);
+  assertEquals((await regRes.json()).ok, true);
+  assertEquals(db.hasDevice("tok_abc"), true);
+
+  const delRes = await app(ctx).request("/devices/tok_abc", {
+    method: "DELETE",
+    headers: { "x-app-user-id": "u_dev" },
+  });
+  assertEquals(delRes.status, 200);
+  assertEquals((await delRes.json()).ok, true);
+  assertEquals(db.hasDevice("tok_abc"), false);
+});
