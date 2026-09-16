@@ -452,9 +452,10 @@ Deno.test("SupabaseDb rejects a non-array flag response", async () => {
   await assertFailure(() => db.getFlags(), "invalid response");
 });
 
-Deno.test("SupabaseDb rejects an invalid flag row", async () => {
-  const { db } = adapter([jsonResponse([{}])]);
-  await assertFailure(() => db.getFlags(), "invalid row");
+Deno.test("SupabaseDb skips an invalid flag row and keeps valid ones", async () => {
+  const { db } = adapter([jsonResponse([{ key: "payments_enabled", value: true }, {}])]);
+  // Lenient by design: a malformed flags row must not take the gate down.
+  assertEquals(await db.getFlags(), { payments_enabled: true });
 });
 
 Deno.test("SupabaseDb lists only published books", async () => {
